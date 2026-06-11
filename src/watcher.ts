@@ -99,7 +99,11 @@ export class Watcher extends DurableObject<Env> {
     // socket keeps this DO awake anyway).
     this.ctx.acceptWebSocket(pair[1]);
     try {
-      const rows = await this.env.DB.prepare("SELECT * FROM events ORDER BY ts DESC LIMIT 50").all();
+      // History is live events only — replays are demo data and shouldn't
+      // greet visitors by default; they stream in live while one is running.
+      const rows = await this.env.DB.prepare(
+        "SELECT * FROM events WHERE replay = 0 ORDER BY ts DESC LIMIT 50",
+      ).all();
       pair[1].send(JSON.stringify({ type: "history", events: rows.results.map(rowToEvent) }));
     } catch (err) {
       console.log("history query failed:", err);

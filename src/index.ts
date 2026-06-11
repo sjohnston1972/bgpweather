@@ -29,7 +29,12 @@ export default {
 
     if (url.pathname === "/api/events") {
       const limit = Math.min(Number(url.searchParams.get("limit") ?? "50") || 50, 200);
-      const rows = await env.DB.prepare("SELECT * FROM events ORDER BY ts DESC LIMIT ?").bind(limit).all();
+      // Live events by default; pass ?replays=1 to include replay reconstructions.
+      const includeReplays = url.searchParams.get("replays") === "1";
+      const sql = includeReplays
+        ? "SELECT * FROM events ORDER BY ts DESC LIMIT ?"
+        : "SELECT * FROM events WHERE replay = 0 ORDER BY ts DESC LIMIT ?";
+      const rows = await env.DB.prepare(sql).bind(limit).all();
       return Response.json(rows.results.map(rowToEvent));
     }
 

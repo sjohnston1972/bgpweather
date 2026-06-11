@@ -129,7 +129,7 @@ Trigger from the dashboard dropdown or `curl -X POST https://bgpweather.clydefor
 |---|---|---|
 | `/` | GET | Dashboard |
 | `/ws` | GET | WebSocket: history + live events + stats |
-| `/api/events?limit=50` | GET | Recent events (JSON) |
+| `/api/events?limit=50` | GET | Recent live events (JSON); add `&replays=1` to include replay reconstructions |
 | `/api/status` | GET | Health: connected? msgs/sec, subscriptions, narration budget |
 | `/api/config` | GET | Current thresholds + watchlist (read-only) |
 | `/replay/:incident` | POST | Run a replay |
