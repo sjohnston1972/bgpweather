@@ -38,6 +38,9 @@ export interface RisUpdate {
 export interface WatchlistEntry {
   prefix: string;
   expected_origins: number[];  // array: anycast prefixes (A/J root) have several legit origins
+  // Inclusive ASN ranges for operators that rotate across a whole block
+  // (Verisign announces the roots from AS396539-AS396828).
+  expected_origin_ranges?: [number, number][];
   label: string;
   aggregate?: boolean;  // true = same-origin more-specifics are routine; don't alert on them
   muted?: boolean;      // escape hatch for noisy entries

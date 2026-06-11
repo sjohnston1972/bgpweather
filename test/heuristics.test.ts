@@ -43,6 +43,24 @@ describe("ORIGIN_CHANGE", () => {
   });
 });
 
+describe("expected_origin_ranges", () => {
+  it("origins inside a declared ASN range are treated as expected", () => {
+    const wl = compileWatchlist([
+      { prefix: "192.58.128.0/24", expected_origins: [26415], expected_origin_ranges: [[396539, 396828]], label: "J-root" },
+    ]);
+    const st = emptyState(0);
+    // inside the range -> no event
+    expect(processMessage(announce("192.58.128.0/24", [64500, 396654]), wl, st, CONFIG, 1000)).toEqual([]);
+    // range boundaries are inclusive
+    expect(processMessage(announce("192.58.128.0/24", [64500, 396539]), wl, st, CONFIG, 2000)).toEqual([]);
+    expect(processMessage(announce("192.58.128.0/24", [64500, 396828]), wl, st, CONFIG, 3000)).toEqual([]);
+    // scalar list still works
+    expect(processMessage(announce("192.58.128.0/24", [64500, 26415]), wl, st, CONFIG, 4000)).toEqual([]);
+    // outside both -> ORIGIN_CHANGE fires
+    expect(processMessage(announce("192.58.128.0/24", [64500, 396829]), wl, st, CONFIG, 5000)).toHaveLength(1);
+  });
+});
+
 describe("MORE_SPECIFIC", () => {
   it("sev3 when origin differs, sev2 when origin expected, suppressed for same-origin aggregates", () => {
     const wl = compileWatchlist(WL);

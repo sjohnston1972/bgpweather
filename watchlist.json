@@ -1,5 +1,5 @@
 [
-  {"prefix": "198.41.0.0/24",    "expected_origins": [396549, 396566, 396555, 397197, 19836], "label": "A-root DNS (Verisign)"},
+  {"prefix": "198.41.0.0/24",    "expected_origins": [19836, 397197], "expected_origin_ranges": [[396539, 396828]], "label": "A-root DNS (Verisign)"},
   {"prefix": "170.247.170.0/24", "expected_origins": [394353], "label": "B-root DNS (USC-ISI)"},
   {"prefix": "192.33.4.0/24",    "expected_origins": [2149],   "label": "C-root DNS (Cogent)"},
   {"prefix": "199.7.91.0/24",    "expected_origins": [10886],  "label": "D-root DNS (UMD)"},
@@ -8,7 +8,7 @@
   {"prefix": "192.112.36.0/24",  "expected_origins": [5927],   "label": "G-root DNS (US DoD)"},
   {"prefix": "198.97.190.0/24",  "expected_origins": [1508],   "label": "H-root DNS (US Army)"},
   {"prefix": "192.36.148.0/24",  "expected_origins": [29216],  "label": "I-root DNS (Netnod)"},
-  {"prefix": "192.58.128.0/24",  "expected_origins": [396566, 396761, 397197, 396688, 396707, 396748, 396549, 396661], "label": "J-root DNS (Verisign)"},
+  {"prefix": "192.58.128.0/24",  "expected_origins": [26415, 397197], "expected_origin_ranges": [[396539, 396828]], "label": "J-root DNS (Verisign)"},
   {"prefix": "193.0.14.0/24",    "expected_origins": [25152],  "label": "K-root DNS (RIPE NCC)"},
   {"prefix": "199.7.83.0/24",    "expected_origins": [20144],  "label": "L-root DNS (ICANN)"},
   {"prefix": "202.12.27.0/24",   "expected_origins": [7500],   "label": "M-root DNS (WIDE)"},

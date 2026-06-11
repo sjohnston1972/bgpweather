@@ -39,6 +39,17 @@ function prefixState(state: HeuristicsState, key: string): PrefixState {
   return ps;
 }
 
+// Is this origin AS allowed for the watchlist entry? Checks the scalar list
+// and any declared inclusive ASN ranges (anycast operators like Verisign
+// rotate the roots across a whole allocated block).
+export function isExpectedOrigin(entry: WatchlistEntry, origin: number): boolean {
+  if (entry.expected_origins.includes(origin)) return true;
+  for (const [lo, hi] of entry.expected_origin_ranges ?? []) {
+    if (origin >= lo && origin <= hi) return true;
+  }
+  return false;
+}
+
 // AS paths can contain nested arrays (AS-sets) — flatten to a simple number list.
 export function flattenPath(path: (number | number[])[] | undefined): number[] {
   if (!path) return [];
@@ -101,7 +112,7 @@ function checkOriginChange(
   ps: PrefixState, w: CompiledEntry, origin: number | undefined, path: number[],
   msg: RisUpdate, cfg: Config, now: number, events: NewEvent[],
 ) {
-  if (origin === undefined || w.entry.expected_origins.includes(origin)) return;
+  if (origin === undefined || isExpectedOrigin(w.entry, origin)) return;
   // undefined = never fired for this origin before -> always fire
   const last = ps.originDebounce[String(origin)];
   if (last !== undefined && now - last < cfg.rules.originChangeDebounceMs) return;
@@ -120,7 +131,7 @@ function checkMoreSpecific(
   state: HeuristicsState, w: CompiledEntry, announced: string, origin: number | undefined,
   path: number[], msg: RisUpdate, cfg: Config, now: number, events: NewEvent[],
 ) {
-  const differs = origin === undefined || !w.entry.expected_origins.includes(origin);
+  const differs = origin === undefined || !isExpectedOrigin(w.entry, origin);
   // Big aggregates (Apple's /8 etc.) legitimately announce same-origin more-specifics
   // all day — only a *different* origin inside them is interesting.
   if (w.entry.aggregate && !differs) return;
