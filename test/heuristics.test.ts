@@ -62,6 +62,20 @@ describe("expected_origin_ranges", () => {
 });
 
 describe("MORE_SPECIFIC", () => {
+  it("downgrades to sev2 when the expected origin appears in the path (sanctioned delegation)", () => {
+    const wl = compileWatchlist(WL);
+    const st = emptyState(0);
+    // Apple edge-cache pattern: Tata (4755) originates Apple space with
+    // AS714 directly upstream in the path — owner-sanctioned, not a hijack.
+    const evs = processMessage(announce("17.76.240.0/20", [34019, 714, 4755]), wl, st, CONFIG, 1000);
+    expect(evs).toHaveLength(1);
+    expect(evs[0]).toMatchObject({ kind: "MORE_SPECIFIC", severity: 2 });
+    expect(evs[0].details.viaExpectedOrigin).toBe(true);
+    // without the owner in the path it stays sev3
+    const evs2 = processMessage(announce("17.80.0.0/20", [34019, 9498, 4755]), wl, st, CONFIG, 2000);
+    expect(evs2[0]).toMatchObject({ kind: "MORE_SPECIFIC", severity: 3 });
+  });
+
   it("sev3 when origin differs, sev2 when origin expected, suppressed for same-origin aggregates", () => {
     const wl = compileWatchlist(WL);
     const st = emptyState(0);

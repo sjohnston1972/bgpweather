@@ -135,16 +135,21 @@ function checkMoreSpecific(
   // Big aggregates (Apple's /8 etc.) legitimately announce same-origin more-specifics
   // all day — only a *different* origin inside them is interesting.
   if (w.entry.aggregate && !differs) return;
+  // A different origin whose path still contains the legitimate owner is
+  // almost always sanctioned delegation (CDN edge caches inside ISPs announce
+  // the owner's space with the owner as upstream). Interesting, not alarming.
+  const viaExpected = differs && path.some((asn) => isExpectedOrigin(w.entry, asn));
   const ps = prefixState(state, w.entry.prefix);
   const key = `${announced}|${origin}`;
   const last = ps.msDebounce[key];
   if (last !== undefined && now - last < cfg.rules.moreSpecificDebounceMs) return;
   ps.msDebounce[key] = now;
   events.push({
-    ts: now, kind: "MORE_SPECIFIC", severity: differs ? 3 : 2, prefix: announced, label: w.entry.label,
+    ts: now, kind: "MORE_SPECIFIC", severity: differs && !viaExpected ? 3 : 2, prefix: announced, label: w.entry.label,
     details: {
       announcedPrefix: announced, watchedPrefix: w.entry.prefix,
       observedOrigin: origin, expectedOrigins: w.entry.expected_origins,
+      viaExpectedOrigin: viaExpected,
       asPath: path, peer: msg.peer, peerAsn: msg.peer_asn, collector: msg.host,
     },
   });

@@ -1,5 +1,5 @@
 [
-  {"prefix": "198.41.0.0/24",    "expected_origins": [19836, 397197], "expected_origin_ranges": [[396539, 396828]], "label": "A-root DNS (Verisign)"},
+  {"prefix": "198.41.0.0/24",    "expected_origins": [19836, 26415, 7342], "expected_origin_ranges": [[396539, 396828], [397193, 397212], [36617, 36632]], "label": "A-root DNS (Verisign)"},
   {"prefix": "170.247.170.0/24", "expected_origins": [394353], "label": "B-root DNS (USC-ISI)"},
   {"prefix": "192.33.4.0/24",    "expected_origins": [2149],   "label": "C-root DNS (Cogent)"},
   {"prefix": "199.7.91.0/24",    "expected_origins": [10886],  "label": "D-root DNS (UMD)"},
@@ -8,7 +8,7 @@
   {"prefix": "192.112.36.0/24",  "expected_origins": [5927],   "label": "G-root DNS (US DoD)"},
   {"prefix": "198.97.190.0/24",  "expected_origins": [1508],   "label": "H-root DNS (US Army)"},
   {"prefix": "192.36.148.0/24",  "expected_origins": [29216],  "label": "I-root DNS (Netnod)"},
-  {"prefix": "192.58.128.0/24",  "expected_origins": [26415, 397197], "expected_origin_ranges": [[396539, 396828]], "label": "J-root DNS (Verisign)"},
+  {"prefix": "192.58.128.0/24",  "expected_origins": [19836, 26415, 7342], "expected_origin_ranges": [[396539, 396828], [397193, 397212], [36617, 36632]], "label": "J-root DNS (Verisign)"},
   {"prefix": "193.0.14.0/24",    "expected_origins": [25152],  "label": "K-root DNS (RIPE NCC)"},
   {"prefix": "199.7.83.0/24",    "expected_origins": [20144],  "label": "L-root DNS (ICANN)"},
   {"prefix": "202.12.27.0/24",   "expected_origins": [7500],   "label": "M-root DNS (WIDE)"},
@@ -33,6 +33,6 @@
   {"prefix": "198.38.96.0/19",   "expected_origins": [2906, 40027], "label": "Netflix", "aggregate": true},
   {"prefix": "52.94.0.0/22",     "expected_origins": [16509],  "label": "Amazon AWS", "aggregate": true},
   {"prefix": "13.107.42.0/24",   "expected_origins": [8068],   "label": "Microsoft 365"},
-  {"prefix": "149.154.160.0/22", "expected_origins": [62041],  "label": "Telegram"},
-  {"prefix": "185.199.108.0/22", "expected_origins": [54113],  "label": "GitHub Pages (via Fastly)"}
+  {"prefix": "149.154.160.0/22", "expected_origins": [62041],  "label": "Telegram", "aggregate": true},
+  {"prefix": "185.199.108.0/22", "expected_origins": [54113],  "label": "GitHub Pages (via Fastly)", "aggregate": true}
 ]
