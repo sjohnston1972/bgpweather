@@ -2,6 +2,11 @@ name = "bgp-weather"
 main = "src/index.ts"
 compatibility_date = "2026-06-01"
 
+# Custom domain — must sit above the first [table] or TOML files it under that table.
+routes = [
+  { pattern = "bgpweather.clydeford.net", custom_domain = true }
+]
+
 # Dashboard files in public/ are served directly; anything else falls through to the Worker.
 [assets]
 directory = "public"
@@ -19,7 +24,7 @@ new_sqlite_classes = ["Watcher"]
 [[d1_databases]]
 binding = "DB"
 database_name = "bgp-weather"
-database_id = "FILLED-IN-TASK-8"
+database_id = "b6f449b4-0383-4167-aa27-ddc158ce2b37"
 
 [triggers]
 # 1) watchdog ping so the DO reconnects if evicted, 2) hourly calm summary, 3) daily D1 cleanup
@@ -27,10 +32,6 @@ crons = ["*/5 * * * *", "0 * * * *", "30 3 * * *"]
 
 [vars]
 NARRATION_ENABLED = "true"
-
-routes = [
-  { pattern = "bgpweather.clydeford.net", custom_domain = true }
-]
 
 [observability]
 enabled = true
