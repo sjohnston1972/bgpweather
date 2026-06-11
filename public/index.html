@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BGP Weather Channel — live internet routing conditions</title>
+<meta name="description" content="An AI weather presenter for the global BGP routing system. Hijacks, leaks and withdrawal storms, narrated live.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='80' font-size='80'>🌐</text></svg>">
+</head>
+<body>
+<div class="noise" aria-hidden="true"></div>
+
+<!-- Broadcast top bar -->
+<header class="topbar">
+  <div class="ident">
+    <span class="ident-globe" aria-hidden="true"></span>
+    <span class="ident-name">BGP&nbsp;WEATHER&nbsp;CHANNEL</span>
+    <span class="ident-sub">internet routing conditions</span>
+  </div>
+  <div class="onair">
+    <span id="conn-dot" class="dot dot-off" title="RIS Live connection"></span>
+    <span id="onair-label" class="onair-label">CONNECTING</span>
+    <span class="utc-clock"><span id="utc-time">--:--:--</span>&nbsp;UTC</span>
+  </div>
+</header>
+
+<main>
+  <!-- Conditions banner: the weather map -->
+  <section id="conditions" class="conditions conditions-calm" aria-live="polite">
+    <div class="conditions-aurora" aria-hidden="true"></div>
+    <div class="conditions-body">
+      <div class="conditions-main">
+        <p class="conditions-kicker">current conditions over the routing table</p>
+        <h1 id="conditions-word" class="conditions-word">Calm</h1>
+        <p id="conditions-text" class="conditions-text">Waiting for the first observations to come in from the collectors…</p>
+      </div>
+      <dl class="conditions-readout mono">
+        <div><dt>updates / sec</dt><dd id="r-rate">0</dd></div>
+        <div><dt>announcements</dt><dd id="r-ann">0</dd></div>
+        <div><dt>withdrawals</dt><dd id="r-wd">0</dd></div>
+        <div><dt>events (1h)</dt><dd id="r-events">0</dd></div>
+      </dl>
+    </div>
+  </section>
+
+  <!-- Live ticker -->
+  <section class="ticker mono" aria-label="live stream statistics">
+    <span class="ticker-item"><span class="ticker-k">TOTAL</span> <span id="t-total" class="ticker-v">0</span></span>
+    <span class="ticker-sep" aria-hidden="true">◆</span>
+    <span class="ticker-item"><span class="ticker-k">ANN</span> <span id="t-ann" class="ticker-v up">0</span></span>
+    <span class="ticker-sep" aria-hidden="true">◆</span>
+    <span class="ticker-item"><span class="ticker-k">WD</span> <span id="t-wd" class="ticker-v down">0</span></span>
+    <span class="ticker-sep" aria-hidden="true">◆</span>
+    <span class="ticker-item"><span class="ticker-k">VIEWERS</span> <span id="t-clients" class="ticker-v">0</span></span>
+    <span class="ticker-sep" aria-hidden="true">◆</span>
+    <span class="ticker-item ticker-collectors"><span class="ticker-k">COLLECTORS</span> <span id="t-collectors" class="ticker-v">—</span></span>
+  </section>
+
+  <!-- Replay deck + feed header -->
+  <section class="feedbar">
+    <h2 class="feedbar-title">Observed events</h2>
+    <div class="replay-deck">
+      <label class="replay-label mono" for="replay-select">rewind to</label>
+      <select id="replay-select" class="replay-select mono">
+        <option value="facebook-2021">Facebook outage · Oct 2021</option>
+        <option value="youtube-2008">YouTube hijack · Feb 2008</option>
+        <option value="prepend-leak-2019">Route-optimizer leak · Jun 2019</option>
+      </select>
+      <button id="replay-btn" class="replay-btn mono" type="button">▶ replay</button>
+    </div>
+  </section>
+
+  <div id="replay-banner" class="replay-banner mono" hidden></div>
+
+  <!-- Event feed -->
+  <section id="feed" class="feed" aria-live="polite">
+    <div id="feed-empty" class="feed-empty">
+      <p class="mono">— no events yet —</p>
+      <p>A quiet day on the internet is a good day. Try a replay for some historical weather.</p>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <p>Detection is heuristic and unconfirmed — this is a weather channel, not an attribution service.
+     Replays are hand-authored reconstructions of historical incidents.</p>
+  <p class="mono foot-src">data · <a href="https://ris-live.ripe.net" rel="noopener">RIPE RIS Live</a> &nbsp;·&nbsp; narration · Claude &nbsp;·&nbsp; <a href="https://github.com/sjohnston1972/bgpweather" rel="noopener">source</a></p>
+</footer>
+
+<script src="/app.js"></script>
+</body>
+</html>
