@@ -1,0 +1,36 @@
+name = "bgp-weather"
+main = "src/index.ts"
+compatibility_date = "2026-06-01"
+
+# Dashboard files in public/ are served directly; anything else falls through to the Worker.
+[assets]
+directory = "public"
+binding = "ASSETS"
+
+[[durable_objects.bindings]]
+name = "WATCHER"
+class_name = "Watcher"
+
+# SQLite-backed DO class — required for the free plan and the modern default.
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Watcher"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "bgp-weather"
+database_id = "FILLED-IN-TASK-8"
+
+[triggers]
+# 1) watchdog ping so the DO reconnects if evicted, 2) hourly calm summary, 3) daily D1 cleanup
+crons = ["*/5 * * * *", "0 * * * *", "30 3 * * *"]
+
+[vars]
+NARRATION_ENABLED = "true"
+
+routes = [
+  { pattern = "bgpweather.clydeford.net", custom_domain = true }
+]
+
+[observability]
+enabled = true
