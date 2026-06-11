@@ -1,0 +1,845 @@
+{
+ "name": "prepend-leak-2019",
+ "title": "Route-optimizer leak — June 2019",
+ "description": "A BGP optimizer at a small Pennsylvania ISP generated fake more-specifics of Cloudflare prefixes; a customer — a steel company, AS396531 — leaked them to Verizon (AS701), which propagated them worldwide. Long, strange AS paths and rerouted traffic everywhere.",
+ "disclaimer": "Hand-authored reconstruction — timings and peers are illustrative, not a real capture.",
+ "speed": 20,
+ "watchlist": [
+  {
+   "prefix": "104.16.0.0/20",
+   "expected_origins": [
+    13335
+   ],
+   "label": "Cloudflare CDN"
+  }
+ ],
+ "messages": [
+  {
+   "dt": 0,
+   "data": {
+    "timestamp": 0,
+    "type": "UPDATE",
+    "peer": "192.0.2.1",
+    "peer_asn": "64500",
+    "host": "rrc00",
+    "path": [
+     64500,
+     174,
+     13335
+    ],
+    "announcements": [
+     {
+      "next_hop": "192.0.2.254",
+      "prefixes": [
+       "104.16.0.0/20"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "dt": 2000,
+   "data": {
+    "timestamp": 2,
+    "type": "UPDATE",
+    "peer": "192.0.2.2",
+    "peer_asn": "64501",
+    "host": "rrc01",
+    "path": [
+     64501,
+     174,
+     13335
+    ],
+    "announcements": [
+     {
+      "next_hop": "192.0.2.254",
+      "prefixes": [
+       "104.16.0.0/20"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "dt": 4000,
+   "data": {
+    "timestamp": 4,
+    "type": "UPDATE",
+    "peer": "192.0.2.3",
+    "peer_asn": "64502",
+    "host": "rrc02",
+    "path": [
+     64502,
+     174,
+     13335
+    ],
+    "announcements": [
+     {
+      "next_hop": "192.0.2.254",
+      "prefixes": [
+       "104.16.0.0/20"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "dt": 6000,
+   "data": {
+    "timestamp": 6,
+    "type": "UPDATE",
+    "peer": "192.0.2.4",
+    "peer_asn": "64503",
+    "host": "rrc03",
+    "path": [
+     64503,
+     174,
+     13335
+    ],
+    "announcements": [
+     {
+      "next_hop": "192.0.2.254",
+      "prefixes": [
+       "104.16.0.0/20"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "dt": 8000,
+   "data": {
+    "timestamp": 8,
+    "type": "UPDATE",
+    "peer": "192.0.2.5",
+    "peer_asn": "64504",
+    "host": "rrc04",
+    "path": [
+     64504,
+     174,
+     13335
+    ],
+    "announcements": [
+     {
+      "next_hop": "192.0.2.254",
+      "prefixes": [
+       "104.16.0.0/20"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "dt": 10000,
+   "data": {
+    "timestamp": 10,
+    "type": "UPDATE",
+    "peer": "192.0.2.6",
+    "peer_asn": "64505",
+    "host": "rrc05",
+    "path": [
+     64505,
+     174,
+     13335
+    ],
+    "announcements": [
+     {
+      "next_hop": "192.0.2.254",
+      "prefixes": [
+       "104.16.0.0/20"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "dt": 12000,
+   "data": {
+    "timestamp": 12,
+    "type": "UPDATE",
+    "peer": "192.0.2.7",
+    "peer_asn": "64506",
+    "host": "rrc06",
+    "path": [
+     64506,
+     174,
+     13335
+    ],
+    "announcements": [
+     {
+      "next_hop": "192.0.2.254",
+      "prefixes": [
+       "104.16.0.0/20"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "dt": 14000,
+   "data": {
+    "timestamp": 14,
+    "type": "UPDATE",
+    "peer": "192.0.2.8",
+    "peer_asn": "64507",
+    "host": "rrc07",
+    "path": [
+     64507,
+     174,
+     13335
+    ],
+    "announcements": [
+     {
+      "next_hop": "192.0.2.254",
+      "prefixes": [
+       "104.16.0.0/20"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "dt": 16000,
+   "data": {
+    "timestamp": 16,
+    "type": "UPDATE",
+    "peer": "192.0.2.9",
+    "peer_asn": "64508",
+    "host": "rrc08",
+    "path": [
+     64508,
+     174,
+     13335
+    ],
+    "announcements": [
+     {
+      "next_hop": "192.0.2.254",
+      "prefixes": [
+       "104.16.0.0/20"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "dt": 18000,
+   "data": {
+    "timestamp": 18,
+    "type": "UPDATE",
+    "peer": "192.0.2.10",
+    "peer_asn": "64509",
+    "host": "rrc09",
+    "path": [
+     64509,
+     174,
+     13335
+    ],
+    "announcements": [
+     {
+      "next_hop": "192.0.2.254",
+      "prefixes": [
+       "104.16.0.0/20"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "dt": 20000,
+   "data": {
+    "timestamp": 20,
+    "type": "UPDATE",
+    "peer": "192.0.2.11",
+    "peer_asn": "64510",
+    "host": "rrc10",
+    "path": [
+     64510,
+     174,
+     13335
+    ],
+    "announcements": [
+     {
+      "next_hop": "192.0.2.254",
+      "prefixes": [
+       "104.16.0.0/20"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "dt": 22000,
+   "data": {
+    "timestamp": 22,
+    "type": "UPDATE",
+    "peer": "192.0.2.12",
+    "peer_asn": "64511",
+    "host": "rrc00",
+    "path": [
+     64511,
+     174,
+     13335
+    ],
+    "announcements": [
+     {
+      "next_hop": "192.0.2.254",
+      "prefixes": [
+       "104.16.0.0/20"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "dt": 24000,
+   "data": {
+    "timestamp": 24,
+    "type": "UPDATE",
+    "peer": "192.0.2.13",
+    "peer_asn": "64512",
+    "host": "rrc01",
+    "path": [
+     64512,
+     174,
+     13335
+    ],
+    "announcements": [
+     {
+      "next_hop": "192.0.2.254",
+      "prefixes": [
+       "104.16.0.0/20"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "dt": 26000,
+   "data": {
+    "timestamp": 26,
+    "type": "UPDATE",
+    "peer": "192.0.2.14",
+    "peer_asn": "64513",
+    "host": "rrc02",
+    "path": [
+     64513,
+     174,
+     13335
+    ],
+    "announcements": [
+     {
+      "next_hop": "192.0.2.254",
+      "prefixes": [
+       "104.16.0.0/20"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "dt": 28000,
+   "data": {
+    "timestamp": 28,
+    "type": "UPDATE",
+    "peer": "192.0.2.15",
+    "peer_asn": "64514",
+    "host": "rrc03",
+    "path": [
+     64514,
+     174,
+     13335
+    ],
+    "announcements": [
+     {
+      "next_hop": "192.0.2.254",
+      "prefixes": [
+       "104.16.0.0/20"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "dt": 30000,
+   "data": {
+    "timestamp": 30,
+    "type": "UPDATE",
+    "peer": "192.0.2.16",
+    "peer_asn": "64515",
+    "host": "rrc04",
+    "path": [
+     64515,
+     174,
+     13335
+    ],
+    "announcements": [
+     {
+      "next_hop": "192.0.2.254",
+      "prefixes": [
+       "104.16.0.0/20"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "dt": 32000,
+   "data": {
+    "timestamp": 32,
+    "type": "UPDATE",
+    "peer": "192.0.2.1",
+    "peer_asn": "64500",
+    "host": "rrc00",
+    "path": [
+     64500,
+     174,
+     13335
+    ],
+    "announcements": [
+     {
+      "next_hop": "192.0.2.254",
+      "prefixes": [
+       "104.16.0.0/20"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "dt": 34000,
+   "data": {
+    "timestamp": 34,
+    "type": "UPDATE",
+    "peer": "192.0.2.2",
+    "peer_asn": "64501",
+    "host": "rrc01",
+    "path": [
+     64501,
+     174,
+     13335
+    ],
+    "announcements": [
+     {
+      "next_hop": "192.0.2.254",
+      "prefixes": [
+       "104.16.0.0/20"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "dt": 36000,
+   "data": {
+    "timestamp": 36,
+    "type": "UPDATE",
+    "peer": "192.0.2.3",
+    "peer_asn": "64502",
+    "host": "rrc02",
+    "path": [
+     64502,
+     174,
+     13335
+    ],
+    "announcements": [
+     {
+      "next_hop": "192.0.2.254",
+      "prefixes": [
+       "104.16.0.0/20"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "dt": 38000,
+   "data": {
+    "timestamp": 38,
+    "type": "UPDATE",
+    "peer": "192.0.2.4",
+    "peer_asn": "64503",
+    "host": "rrc03",
+    "path": [
+     64503,
+     174,
+     13335
+    ],
+    "announcements": [
+     {
+      "next_hop": "192.0.2.254",
+      "prefixes": [
+       "104.16.0.0/20"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "dt": 40000,
+   "data": {
+    "timestamp": 40,
+    "type": "UPDATE",
+    "peer": "192.0.2.5",
+    "peer_asn": "64504",
+    "host": "rrc04",
+    "path": [
+     64504,
+     174,
+     13335
+    ],
+    "announcements": [
+     {
+      "next_hop": "192.0.2.254",
+      "prefixes": [
+       "104.16.0.0/20"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "dt": 42000,
+   "data": {
+    "timestamp": 42,
+    "type": "UPDATE",
+    "peer": "192.0.2.6",
+    "peer_asn": "64505",
+    "host": "rrc05",
+    "path": [
+     64505,
+     174,
+     13335
+    ],
+    "announcements": [
+     {
+      "next_hop": "192.0.2.254",
+      "prefixes": [
+       "104.16.0.0/20"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "dt": 44000,
+   "data": {
+    "timestamp": 44,
+    "type": "UPDATE",
+    "peer": "192.0.2.7",
+    "peer_asn": "64506",
+    "host": "rrc06",
+    "path": [
+     64506,
+     174,
+     13335
+    ],
+    "announcements": [
+     {
+      "next_hop": "192.0.2.254",
+      "prefixes": [
+       "104.16.0.0/20"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "dt": 46000,
+   "data": {
+    "timestamp": 46,
+    "type": "UPDATE",
+    "peer": "192.0.2.8",
+    "peer_asn": "64507",
+    "host": "rrc07",
+    "path": [
+     64507,
+     174,
+     13335
+    ],
+    "announcements": [
+     {
+      "next_hop": "192.0.2.254",
+      "prefixes": [
+       "104.16.0.0/20"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "dt": 60000,
+   "data": {
+    "timestamp": 60,
+    "type": "UPDATE",
+    "peer": "192.0.2.1",
+    "peer_asn": "64500",
+    "host": "rrc00",
+    "path": [
+     64500,
+     701,
+     396531,
+     33154,
+     3356,
+     13335
+    ],
+    "announcements": [
+     {
+      "next_hop": "192.0.2.254",
+      "prefixes": [
+       "104.16.0.0/22"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "dt": 63000,
+   "data": {
+    "timestamp": 63,
+    "type": "UPDATE",
+    "peer": "192.0.2.2",
+    "peer_asn": "64501",
+    "host": "rrc01",
+    "path": [
+     64501,
+     701,
+     396531,
+     33154,
+     3356,
+     13335
+    ],
+    "announcements": [
+     {
+      "next_hop": "192.0.2.254",
+      "prefixes": [
+       "104.16.4.0/22"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "dt": 66000,
+   "data": {
+    "timestamp": 66,
+    "type": "UPDATE",
+    "peer": "192.0.2.3",
+    "peer_asn": "64502",
+    "host": "rrc02",
+    "path": [
+     64502,
+     701,
+     396531,
+     33154,
+     3356,
+     13335
+    ],
+    "announcements": [
+     {
+      "next_hop": "192.0.2.254",
+      "prefixes": [
+       "104.16.8.0/22"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "dt": 69000,
+   "data": {
+    "timestamp": 69,
+    "type": "UPDATE",
+    "peer": "192.0.2.4",
+    "peer_asn": "64503",
+    "host": "rrc03",
+    "path": [
+     64503,
+     701,
+     396531,
+     33154,
+     3356,
+     13335
+    ],
+    "announcements": [
+     {
+      "next_hop": "192.0.2.254",
+      "prefixes": [
+       "104.16.12.0/22"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "dt": 80000,
+   "data": {
+    "timestamp": 80,
+    "type": "UPDATE",
+    "peer": "192.0.2.3",
+    "peer_asn": "64502",
+    "host": "rrc02",
+    "path": [
+     64502,
+     701,
+     396531,
+     33154,
+     33154,
+     33154,
+     33154,
+     3356,
+     3356,
+     13335
+    ],
+    "announcements": [
+     {
+      "next_hop": "192.0.2.254",
+      "prefixes": [
+       "104.16.0.0/20"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "dt": 95000,
+   "data": {
+    "timestamp": 95,
+    "type": "UPDATE",
+    "peer": "192.0.2.4",
+    "peer_asn": "64503",
+    "host": "rrc03",
+    "path": [
+     64503,
+     701,
+     396531,
+     701,
+     3356,
+     13335
+    ],
+    "announcements": [
+     {
+      "next_hop": "192.0.2.254",
+      "prefixes": [
+       "104.16.0.0/20"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "dt": 120000,
+   "data": {
+    "timestamp": 120,
+    "type": "UPDATE",
+    "peer": "192.0.2.1",
+    "peer_asn": "64500",
+    "host": "rrc00",
+    "path": [
+     64500,
+     174,
+     13335
+    ],
+    "announcements": [
+     {
+      "next_hop": "192.0.2.254",
+      "prefixes": [
+       "104.16.0.0/20"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "dt": 122000,
+   "data": {
+    "timestamp": 122,
+    "type": "UPDATE",
+    "peer": "192.0.2.2",
+    "peer_asn": "64501",
+    "host": "rrc01",
+    "path": [
+     64501,
+     174,
+     13335
+    ],
+    "announcements": [
+     {
+      "next_hop": "192.0.2.254",
+      "prefixes": [
+       "104.16.0.0/20"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "dt": 124000,
+   "data": {
+    "timestamp": 124,
+    "type": "UPDATE",
+    "peer": "192.0.2.3",
+    "peer_asn": "64502",
+    "host": "rrc02",
+    "path": [
+     64502,
+     174,
+     13335
+    ],
+    "announcements": [
+     {
+      "next_hop": "192.0.2.254",
+      "prefixes": [
+       "104.16.0.0/20"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "dt": 126000,
+   "data": {
+    "timestamp": 126,
+    "type": "UPDATE",
+    "peer": "192.0.2.4",
+    "peer_asn": "64503",
+    "host": "rrc03",
+    "path": [
+     64503,
+     174,
+     13335
+    ],
+    "announcements": [
+     {
+      "next_hop": "192.0.2.254",
+      "prefixes": [
+       "104.16.0.0/20"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "dt": 128000,
+   "data": {
+    "timestamp": 128,
+    "type": "UPDATE",
+    "peer": "192.0.2.5",
+    "peer_asn": "64504",
+    "host": "rrc04",
+    "path": [
+     64504,
+     174,
+     13335
+    ],
+    "announcements": [
+     {
+      "next_hop": "192.0.2.254",
+      "prefixes": [
+       "104.16.0.0/20"
+      ]
+     }
+    ]
+   }
+  }
+ ]
+}
