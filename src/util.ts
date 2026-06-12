@@ -19,6 +19,26 @@ export function ulid(now: number = Date.now()): string {
   return timePart + randPart;
 }
 
+// Narration budget ledger: count AI-narrated rows from the last hour. Both
+// Durable Objects call this before narrating, which makes the hourly caps
+// genuinely global without coupling the DOs to each other.
+export async function getNarrationCounts(db: D1Database, now: number): Promise<import("./narrator").NarrationCounts> {
+  try {
+    const row = await db.prepare(
+      `SELECT
+         SUM(CASE WHEN kind != 'CALM_SUMMARY' THEN 1 ELSE 0 END) AS total,
+         SUM(CASE WHEN kind != 'CALM_SUMMARY' AND severity < 3 THEN 1 ELSE 0 END) AS nonSev3,
+         SUM(CASE WHEN kind = 'CALM_SUMMARY' THEN 1 ELSE 0 END) AS calm
+       FROM events WHERE narrated = 1 AND ts > ?`,
+    ).bind(now - 3_600_000).first<{ total: number | null; nonSev3: number | null; calm: number | null }>();
+    return { total: row?.total ?? 0, nonSev3: row?.nonSev3 ?? 0, calm: row?.calm ?? 0 };
+  } catch (err) {
+    console.log("narration counts query failed:", err);
+    // Fail closed-ish: pretend the budget is spent so an outage can't overspend.
+    return { total: 99, nonSev3: 99, calm: 99 };
+  }
+}
+
 // D1 returns flat rows; rebuild the BgpEvent shape (details is stored as JSON text).
 export function rowToEvent(row: Record<string, unknown>): BgpEvent {
   let details: Record<string, unknown> = {};

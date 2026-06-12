@@ -11,8 +11,8 @@ import {
   buildCalmSummary, compileWatchlist, diffCounters, emptyCounters, emptyState,
   processMessage, pruneState,
 } from "./heuristics";
-import { NarrationBudget, narrate, templateFor } from "./narrator";
-import { rowToEvent, ulid } from "./util";
+import { canNarrateFromCounts, narrate, templateFor } from "./narrator";
+import { getNarrationCounts, rowToEvent, ulid } from "./util";
 import type {
   BgpEvent, Counters, Env, HeuristicsState, NewEvent, RisUpdate, WatchlistEntry,
 } from "./types";
@@ -28,7 +28,6 @@ export class Watcher extends DurableObject<Env> {
   private bornAt = Date.now();
   private state: HeuristicsState = emptyState(Date.now());
   private hourlySnapshot: Counters = emptyCounters(Date.now());
-  private budget: NarrationBudget = new NarrationBudget();
   private dirty = false;
   private compiled = compileWatchlist(watchlistJson as WatchlistEntry[]);
   private timersStarted = false;
@@ -44,9 +43,6 @@ export class Watcher extends DurableObject<Env> {
       if (saved) this.state = saved;
       const snap = await ctx.storage.get<Counters>("hourlySnapshot");
       if (snap) this.hourlySnapshot = snap;
-      this.budget = NarrationBudget.fromJSON(
-        await ctx.storage.get<{ stamps: { ts: number; sev: 1 | 2 | 3 }[]; calm: number[] }>("budget"),
-      );
       // The alarm is our belt-and-braces heartbeat: persist + reconnect check.
       await ctx.storage.setAlarm(Date.now() + CONFIG.persistIntervalMs);
     });
@@ -199,23 +195,23 @@ export class Watcher extends DurableObject<Env> {
     }
     // Broadcast immediately with the template; AI text replaces it when ready.
     this.broadcast({ type: "event", event });
+    const counts = await getNarrationCounts(this.env.DB, Date.now());
     const result = await narrate(event, {
       apiKey: this.env.ANTHROPIC_API_KEY,
       enabled: this.env.NARRATION_ENABLED !== "false", // kill switch
-      budget: this.budget,
-      now: Date.now(),
+      allowed: canNarrateFromCounts(counts, event.severity, event.kind),
     });
     if (result.narrated) {
       event.commentary = result.text;
       event.narrated = true;
       try {
+        // This narrated=1 row is also the global budget ledger entry.
         await this.env.DB.prepare("UPDATE events SET commentary = ?, narrated = 1 WHERE id = ?")
           .bind(result.text, event.id).run();
       } catch (err) {
         console.log("D1 commentary update failed:", err);
       }
       this.broadcast({ type: "commentary", id: event.id, commentary: result.text });
-      await this.ctx.storage.put("budget", this.budget.toJSON());
     }
   }
 
@@ -237,7 +233,29 @@ export class Watcher extends DurableObject<Env> {
       return;
     }
     if (hourly.messages === 0 && !this.risWs) return; // offline and nothing to say
-    await this.publishEvent(buildCalmSummary(hourly, now));
+    const summary = buildCalmSummary(hourly, now);
+    // Fold in latency aggregates from the sibling DO (read-only; omit on failure)
+    // so calm commentary can cover both channels.
+    try {
+      const resp = await this.env.LATENCY.get(this.env.LATENCY.idFromName("singleton")).fetch("https://do/grid");
+      if (resp.ok) {
+        const frame = (await resp.json()) as { ready?: boolean; regions?: { id: string; medianRtt: number | null; level: number }[] };
+        const reporting = (frame.regions ?? []).filter((r) => r.medianRtt !== null);
+        if (frame.ready && reporting.length > 0) {
+          const sorted = [...reporting].sort((a, b) => (a.medianRtt ?? 0) - (b.medianRtt ?? 0));
+          summary.details.latency = {
+            regionsReporting: reporting.length,
+            globalMedianRtt: sorted[Math.floor(sorted.length / 2)].medianRtt,
+            bestRegion: sorted[0].id,
+            worstRegion: sorted[sorted.length - 1].id,
+            disturbedRegions: reporting.filter((r) => r.level >= 2).length,
+          };
+        }
+      }
+    } catch (err) {
+      console.log("latency grid fetch for calm summary failed:", err);
+    }
+    await this.publishEvent(summary);
   }
 
   // ---- stats, status, timers, persistence ------------------------------------------
@@ -297,7 +315,6 @@ export class Watcher extends DurableObject<Env> {
       connectedSince: this.connectedSince || null,
       uptimeMs: Date.now() - this.bornAt,
       subscriptions: this.compiled.length,
-      narrationsRemainingThisHour: this.budget.remaining(Date.now()),
       eventsByKind: this.state.counters.eventsByKind,
     };
   }
@@ -307,6 +324,5 @@ export class Watcher extends DurableObject<Env> {
     this.dirty = false;
     pruneState(this.state, CONFIG, Date.now()); // keep debounce maps from growing forever
     await this.ctx.storage.put("heuristics", this.state);
-    await this.ctx.storage.put("budget", this.budget.toJSON());
   }
 }

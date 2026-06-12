@@ -16,10 +16,18 @@ binding = "ASSETS"
 name = "WATCHER"
 class_name = "Watcher"
 
-# SQLite-backed DO class — required for the free plan and the modern default.
+[[durable_objects.bindings]]
+name = "LATENCY"
+class_name = "LatencyWatcher"
+
+# SQLite-backed DO classes — required for the free plan and the modern default.
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["Watcher"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["LatencyWatcher"]
 
 [[d1_databases]]
 binding = "DB"

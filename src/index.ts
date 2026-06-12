@@ -8,10 +8,15 @@ import type { Env } from "./types";
 import watchlistJson from "../watchlist.json";
 
 export { Watcher } from "./watcher";
+export { LatencyWatcher } from "./latency-watcher";
 
 function watcherStub(env: Env) {
   // One global watcher for the whole deployment — idFromName is deterministic.
   return env.WATCHER.get(env.WATCHER.idFromName("singleton"));
+}
+
+function latencyStub(env: Env) {
+  return env.LATENCY.get(env.LATENCY.idFromName("singleton"));
 }
 
 export default {
@@ -23,8 +28,26 @@ export default {
       return watcherStub(env).fetch(request);
     }
 
+    if (url.pathname === "/ws/latency") {
+      return latencyStub(env).fetch(request);
+    }
+
     if (url.pathname === "/api/status") {
       return watcherStub(env).fetch("https://do/status");
+    }
+
+    if (url.pathname === "/api/latency/status") {
+      return latencyStub(env).fetch("https://do/status");
+    }
+    if (url.pathname === "/api/latency/grid") {
+      return latencyStub(env).fetch("https://do/grid");
+    }
+    if (url.pathname === "/api/latency/history") {
+      return latencyStub(env).fetch(new Request(`https://do/history${url.search}`));
+    }
+    if (url.pathname.startsWith("/api/latency/region/")) {
+      const id = url.pathname.split("/")[4] ?? "";
+      return latencyStub(env).fetch(`https://do/region/${id}`);
     }
 
     if (url.pathname === "/api/events") {
@@ -51,8 +74,10 @@ export default {
   async scheduled(event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     switch (event.cron) {
       case "*/5 * * * *":
-        // Watchdog: poking the DO wakes it if evicted; its constructor reconnects.
+        // Watchdog: poking the DOs wakes them if evicted; constructors recover
+        // (the BGP watcher reconnects, the latency watcher re-arms its alarm).
         ctx.waitUntil(watcherStub(env).fetch("https://do/status"));
+        ctx.waitUntil(latencyStub(env).fetch("https://do/status"));
         break;
       case "0 * * * *":
         // Hourly calm-day summary (the DO checks whether the hour was actually calm).
