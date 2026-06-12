@@ -19,11 +19,6 @@
     "rgba(77,163,255,0.10)", "rgba(45,212,167,0.16)",
     "rgba(255,181,71,0.24)", "rgba(255,77,94,0.32)",
   ];
-  const LEVEL_STROKE = [
-    "rgba(77,163,255,0.35)", "rgba(45,212,167,0.5)",
-    "rgba(255,181,71,0.7)", "rgba(255,77,94,0.85)",
-  ];
-
   const $ = (id) => document.getElementById(id);
   const feed = $("feed");
   const feedEmpty = $("feed-empty");
@@ -88,7 +83,16 @@
       globe = new Globe(el, { rendererConfig: { antialias: !coarse, alpha: true }, animateIn: true });
     } catch { return; }
 
-    const collectors = Object.entries(rrc).map(([id, c]) => ({ id, ...c }));
+    // Collector beacons and latency region cells share the points layer:
+    // a "cell" is just a big, flat, translucent circle on the surface. Each
+    // cell gets its own altitude step so overlapping translucent discs
+    // (Europe has five!) never sit coplanar and z-fight into spiky artifacts.
+    const collectors = Object.entries(rrc).map(([id, c]) => ({
+      id, ...c, kind: "rrc", r: 0.35, alt: 0.012,
+      color: "rgba(61,220,151,0.9)", label: `${id} · ${c.city}`,
+    }));
+    let regionCells = [];
+    const pushPoints = () => globe.pointsData([...regionCells, ...collectors]);
 
     let ambientPeriod = 6000;
     const ambient = collectors.map((c) => ({
@@ -101,17 +105,18 @@
     let frontArcs = []; // latency GLOBAL_FRONT band (persists while active)
 
     globe
-      .globeImageUrl("https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-night.jpg")
-      .bumpImageUrl("https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-topology.png")
+      .globeImageUrl("/earth-night.jpg")          // self-hosted: no CDN dependency at runtime
+      .bumpImageUrl("/earth-topology.png")
       .backgroundColor("rgba(0,0,0,0)")
       .showAtmosphere(true)
       .atmosphereColor(COND_COLORS.calm)
       .atmosphereAltitude(0.18)
       .pointsData(collectors)
       .pointLat("lat").pointLng("lng")
-      .pointColor(() => "rgba(61,220,151,0.9)")
-      .pointAltitude(0.012).pointRadius(0.35)
-      .pointLabel((d) => `${d.id} · ${d.city}`)
+      .pointColor("color")
+      .pointAltitude("alt").pointRadius("r")
+      .pointLabel("label")
+      .pointsTransitionDuration(0)
       .ringsData(ambient)
       .ringLat("lat").ringLng("lng")
       .ringColor((d) => (t) => `rgba(${d.rgb},${(d.alpha * (1 - t)).toFixed(3)})`)
@@ -126,14 +131,7 @@
       .arcAltitude("alt")
       .arcStroke("stroke")
       .arcDashLength(0.45).arcDashGap(0.7).arcDashInitialGap(1)
-      .arcDashAnimateTime(1600)
-      .polygonsData([])
-      .polygonCapColor((d) => d.properties.color)
-      .polygonSideColor(() => "rgba(0,0,0,0)")
-      .polygonStrokeColor((d) => d.properties.stroke)
-      .polygonAltitude(0.013)
-      .polygonLabel((d) => d.properties.label)
-      .polygonsTransitionDuration(600);
+      .arcDashAnimateTime(1600);
 
     const controls = globe.controls();
     controls.autoRotate = !reduceMotion;
@@ -165,20 +163,6 @@
       const n = parseInt(hex.slice(1), 16);
       return `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
     };
-
-    // A region cell as a circular GeoJSON polygon around its centre.
-    function circleFeature(id, info, props) {
-      const ring = [];
-      const latRad = (info.lat * Math.PI) / 180;
-      for (let i = 0; i <= 36; i++) {
-        const a = (i / 36) * 2 * Math.PI;
-        ring.push([
-          info.lng + (info.radius * Math.cos(a)) / Math.max(0.2, Math.cos(latRad)),
-          Math.max(-85, Math.min(85, info.lat + info.radius * Math.sin(a))),
-        ]);
-      }
-      return { type: "Feature", properties: { id, ...props }, geometry: { type: "Polygon", coordinates: [ring] } };
-    }
 
     let focusTimer = null;
     globeApi.ready = true;
@@ -224,22 +208,23 @@
       }
     };
 
-    // Latency layer: translucent region cells + storm pulses.
+    // Latency layer: translucent region cells (flat discs) + storm pulses.
     globeApi.setRegionCells = (frame, regions) => {
       if (channel === "bgp" || !frame) {
-        globe.polygonsData([]);
+        regionCells = [];
         stormRings = [];
+        pushPoints();
         pushRings();
         return;
       }
-      const features = [];
       stormRings = [];
-      for (const cell of frame.regions) {
+      // Largest discs lowest in the stack so smaller neighbours stay visible.
+      const ordered = [...frame.regions]
+        .filter((c) => regions[c.id])
+        .sort((a, b) => regions[b.id].radius - regions[a.id].radius);
+      regionCells = ordered.map((cell, i) => {
         const info = regions[cell.id];
-        if (!info) continue;
         const warming = !cell.ready;
-        const color = warming ? "rgba(216,222,233,0.05)" : LEVEL_RGBA[cell.level];
-        const stroke = warming ? "rgba(216,222,233,0.18)" : LEVEL_STROKE[cell.level];
         const label =
           `<div class="cell-tip"><b>${info.name}</b><br>` +
           (cell.medianRtt !== null ? `median ${cell.medianRtt} ms` : "no data") +
@@ -247,15 +232,20 @@
           `<br>loss ${cell.lossPct}% · ${cell.samples} probes` +
           (warming ? "<br><i>baseline calibrating…</i>" : "") +
           (cell.lowData ? "<br><i>low data</i>" : "") + `</div>`;
-        features.push(circleFeature(cell.id, info, { color, stroke, label }));
         if (cell.ready && cell.level === 3) {
           stormRings.push({
             lat: info.lat, lng: info.lng,
             maxR: info.radius * 0.9, speed: 1.6, repeat: 2400, rgb: "255,77,94", alpha: 0.5,
           });
         }
-      }
-      globe.polygonsData(features);
+        return {
+          kind: "cell", lat: info.lat, lng: info.lng,
+          r: info.radius, alt: 0.002 + i * 0.0006,  // unique altitude per disc: no z-fighting
+          color: warming ? "rgba(216,222,233,0.06)" : LEVEL_RGBA[cell.level],
+          label,
+        };
+      });
+      pushPoints();
       pushRings();
     };
 
