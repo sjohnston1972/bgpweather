@@ -2,7 +2,12 @@
 
 export type EventKind =
   | "ORIGIN_CHANGE" | "MORE_SPECIFIC" | "WITHDRAWAL_STORM"
-  | "FLAP" | "PATH_ANOMALY" | "CALM_SUMMARY";
+  | "FLAP" | "PATH_ANOMALY" | "CALM_SUMMARY"
+  // latency channel (RIPE Atlas)
+  | "LATENCY_STORM" | "LOSS_SQUALL" | "CLEARING" | "GLOBAL_FRONT";
+
+// Event kinds that belong to the latency channel (shared by DO + dashboard logic).
+export const LATENCY_KINDS = ["LATENCY_STORM", "LOSS_SQUALL", "CLEARING", "GLOBAL_FRONT"] as const;
 
 export type Severity = 1 | 2 | 3;
 
@@ -72,7 +77,71 @@ export interface HeuristicsState {
   counters: Counters;
 }
 
+// ---- latency channel (RIPE Atlas) -------------------------------------------
+
+// One curated Atlas anchoring-mesh ping measurement (atlas-measurements.json).
+export interface AtlasMeasurement {
+  msmId: number;
+  region: string;
+  anchor: string;
+  city: string;
+  country: string;
+  lat: number;
+  lng: number;
+  target: string;
+  probeIds: number[];  // fixed sample baked at curation time to keep payloads small
+}
+
+export interface RegionInfo { name: string; lat: number; lng: number; radius: number }
+
+// Per-cycle aggregate for one region (inputs to the weather rules).
+export interface RegionCycleStats {
+  medianRtt: number | null;
+  p90Rtt: number | null;
+  lossPct: number;
+  samples: number;
+}
+
+// Persistent per-region state: baselines + level + debounces.
+export interface RegionState {
+  ewmaRtt: number;
+  ewmaDev: number;        // EWMA of |median - ewmaRtt| (robust spread, kept for details)
+  normalSamples: number;  // EWMA of sampleCount, for "samples collapsed" storm clause
+  cycles: number;         // baselineReady gate counts observed cycles
+  level: 0 | 1 | 2 | 3;   // Clear / Breezy / Unsettled / Stormy
+  levelSince: number;
+  degradedSince: number;  // ts when level first reached >=2; 0 when not degraded
+  lastLossPct: number;
+  lowData: boolean;
+  lastEventTs: Record<string, number>;  // debounce per rule key
+}
+
+export interface LatencyState {
+  regions: Record<string, RegionState>;
+  frontLastTs: number;   // GLOBAL_FRONT debounce
+  frontActive: boolean;
+}
+
+// Compact grid broadcast to dashboard clients after each poll cycle.
+export interface LatencyFrame {
+  ts: number;
+  ready: boolean;        // true once any region's baseline has warmed up
+  frontActive: boolean;
+  regions: Array<{
+    id: string;
+    level: 0 | 1 | 2 | 3;
+    medianRtt: number | null;
+    deltaPct: number | null;  // vs EWMA baseline; null while warming up
+    lossPct: number;
+    samples: number;
+    ready: boolean;
+    lowData: boolean;
+  }>;
+}
+
 export interface Env {
+  LATENCY: DurableObjectNamespace;
+  ATLAS_API_KEY?: string;
   WATCHER: DurableObjectNamespace;
   DB: D1Database;
   ASSETS: Fetcher;

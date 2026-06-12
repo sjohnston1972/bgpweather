@@ -34,6 +34,27 @@ export const CONFIG = {
   retentionDays: 30,
   persistIntervalMs: 60_000,
   statsBroadcastMs: 2_000,
+  latency: {
+    pollIntervalMs: 120_000,
+    backoffIntervalMs: 300_000,   // cycle slows to this after any 429 from Atlas
+    fetchConcurrency: 5,
+    staleResultMaxAgeS: 600,      // drop /latest/ entries older than 10 min
+    minSamples: 5,                // below this a region holds its level ("low data")
+    baselineReadyCycles: 200,     // no events until a region has this many cycles
+    ewmaAlpha: 0.05,
+    // weather levels vs baseline: delta = (median - ewma) / ewma
+    breezyDelta: 0.25, unsettledDelta: 0.60, stormyDelta: 1.50,
+    breezyLossPct: 2, unsettledLossPct: 5, stormyLossPct: 15,
+    collapseFraction: 0.3,        // samples < 30% of normal => stormy clause
+    stormDebounceMs: 60 * 60_000, // one LATENCY_STORM per region per level per hour
+    squallDeltaPts: 10,           // loss jump (percentage points) vs previous cycle
+    squallBigPts: 25,             // >= this => severity 3
+    squallDebounceMs: 30 * 60_000,
+    clearingMinDegradedMs: 30 * 60_000,
+    frontMinRegions: 3,
+    frontDebounceMs: 2 * 60 * 60_000,
+    historyPoints: 720,           // ~24h ring buffer per region at 120s cycles
+  },
 } as const;
 
 export type Config = typeof CONFIG;
