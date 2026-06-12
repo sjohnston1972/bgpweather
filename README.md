@@ -2,11 +2,20 @@
 
 **Live at [bgpweather.clydeford.net](https://bgpweather.clydeford.net)**
 
-An AI commentator that watches the global BGP routing system in real time and narrates
-interesting events — hijacks, leaks, withdrawal storms, outages — like a weather presenter.
+An AI commentator that watches the global internet in real time and narrates interesting
+events like a weather presenter. Two channels, one broadcast:
+
+- **BGP channel** — *is the internet's routing healthy?* Watches the RIPE RIS Live stream
+  for hijacks, leaks, withdrawal storms and flaps on ~36 well-known prefixes.
+- **Latency channel** — *how does the internet feel right now, and where?* Polls the RIPE
+  Atlas anchor mesh and turns regional round-trip times and packet loss into weather:
+  Clear / Breezy / Unsettled / Stormy per region, always measured against that region's
+  own normal.
+
 Runs entirely on Cloudflare (Workers + Durable Objects), with a live dashboard built around
-a rotating 3D globe: collector beacons pulse with live traffic, and events draw severity-coloured
-arcs from the reporting collector to the prefix's home.
+a rotating 3D globe: collector beacons pulse with live traffic, BGP events draw
+severity-coloured arcs, latency regions render as translucent weather cells, and a region
+strip shows sparklines of each region's recent round-trip history.
 
 > *"More-specific prefix announced inside watched 208.65.152.0/22 by AS17557. Could be
 > traffic engineering; could be mischief. Detected — unconfirmed."*
@@ -29,16 +38,22 @@ weather-presenter voice.
 |---|---|
 | `wrangler.toml` | The Cloudflare deployment config: bindings, cron schedules, custom domain |
 | `src/index.ts` | The Worker entry point: routes web requests, runs the cron jobs |
-| `src/watcher.ts` | The Durable Object: holds the RIS Live connection, fans out to browsers, runs replays |
-| `src/heuristics.ts` | The detection rules — pure functions, fully unit-tested |
+| `src/watcher.ts` | BGP Durable Object: holds the RIS Live connection, fans out to browsers |
+| `src/latency-watcher.ts` | Latency Durable Object: polls RIPE Atlas every 2 min on a DO alarm |
+| `src/heuristics.ts` | The BGP detection rules — pure functions, fully unit-tested |
+| `src/latency-rules.ts` | The latency weather rules — pure functions, fully unit-tested |
 | `src/narrator.ts` | The Anthropic API call, the persona prompt, the cost caps, the template fallbacks |
 | `src/prefix.ts` | IPv4 prefix maths ("is this /24 inside that /22?") |
 | `src/config.ts` | Every threshold and cap in one place — tune here |
 | `src/types.ts` | Shared type definitions |
 | `src/util.ts` | Small helpers (sortable event IDs, database row mapping) |
-| `public/` | The dashboard: one HTML page, one CSS file, one JS file + globe.gl from a CDN |
+| `public/` | The dashboard: one HTML page, one CSS file, two JS files + globe.gl from a CDN |
+| `public/latency-layer.js` | The latency channel UI: region cells, sparkline strip, channel switcher |
 | `public/rrc-locations.json` | RIS route-collector cities (hardcoded at build time) for the globe beacons |
 | `public/prefix-geo.json` | Watchlist prefix → home lat/long, baked at build time (`scripts/make-prefix-geo.mjs`) |
+| `public/regions.json` | The 14 latency regions: names + positions for the globe cells |
+| `atlas-measurements.json` | Curated Atlas anchor-mesh measurements (generated, committed) |
+| `scripts/generate-atlas-config.mjs` | Re-curates the Atlas measurement set against the live API |
 | `watchlist.json` | The prefixes we watch and who is allowed to announce them |
 | `migrations/` | The D1 database schema |
 | `test/` | Unit tests (vitest) for the heuristics, narrator caps, and prefix maths |
@@ -70,7 +85,21 @@ cap is spent, a plain template string is used instead — the pipeline never dep
 config, even the current time — and touches nothing else: no network, no database, no
 clock. That means a test can hand it a crafted message and a fake timestamp and check
 exactly what comes out, with no Cloudflare environment needed. The whole detection engine
-is tested in milliseconds with `npm test`.
+is tested in milliseconds with `npm test`. The latency channel's `latency-rules.ts` follows
+exactly the same pattern, and its tests replay a real captured Atlas response.
+
+**Why does the latency channel poll instead of streaming?** Atlas does offer a streaming
+service, but it speaks Socket.IO framing — real protocol work inside a Worker — and weather
+only needs minute-level granularity anyway. One cheap HTTP poll of each measurement every
+two minutes gives the same picture for a fraction of the complexity. (If a region's weather
+changes, it changes over minutes, not milliseconds.)
+
+**What's an EWMA baseline, and why "deviation from normal"?** Tokyo→London is *always*
+~200 ms — that's physics, not a storm. So each region keeps an exponentially-weighted
+moving average of its own median round-trip time (every new sample nudges the average by
+5%), and weather levels are defined as *percentage deviation from that baseline*: +25% is
+Breezy, +60% Unsettled, +150% Stormy. A region only gets weather when it's behaving unlike
+*itself*. New regions spend their first ~7 hours "calibrating" before any events can fire.
 
 ## Running it
 
@@ -83,6 +112,19 @@ npx wrangler deploy # deploy to Cloudflare
 
 Deployment needs `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` in the environment
 (this repo reads them from an untracked `.env`).
+
+### Atlas API key (optional but polite)
+
+The latency channel polls anonymously by default, which Atlas rate-limits more
+aggressively. A free RIPE Atlas account gives you an API key for politeness headroom:
+
+```sh
+npx wrangler secret put ATLAS_API_KEY
+```
+
+If Atlas ever returns 429, the poll cycle automatically backs off from 120s to 300s until
+a clean cycle. **Phase 4 option:** host a software probe on the homelab to earn Atlas
+credits, which unlocks *creating* custom measurements rather than just reading public ones.
 
 ### Turning on AI narration
 
@@ -119,9 +161,16 @@ set the `NARRATION_ENABLED` var to `"false"` in `wrangler.toml` and redeploy.
 |---|---|---|
 | `/` | GET | Dashboard |
 | `/ws` | GET | WebSocket: history + live events + stats |
-| `/api/events?limit=50` | GET | Recent events (JSON) |
-| `/api/status` | GET | Health: connected? msgs/sec, subscriptions, narration budget |
+| `/api/events?limit=50` | GET | Recent events, both channels (JSON) |
+| `/api/status` | GET | BGP health: connected? msgs/sec, subscriptions |
 | `/api/config` | GET | Current thresholds + watchlist (read-only) |
+| `/ws/latency` | GET | WebSocket: latency frames + latency events |
+| `/api/latency/status` | GET | Latency health: last cycle, fetch counts, backoff state |
+| `/api/latency/grid` | GET | Most recent regional weather frame (JSON) |
+| `/api/latency/history?points=120` | GET | Downsampled 24h history per region (sparklines) |
+| `/api/latency/region/:id` | GET | One region: current stats + 24h ring buffer |
+
+The dashboard honours `?channel=bgp`, `?channel=latency`, or `?channel=both` (default).
 
 ## Honesty notes
 

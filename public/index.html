@@ -13,6 +13,7 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='80' font-size='80'>🌐</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/globe.gl@2" defer></script>
 <script src="/app.js" defer></script>
+<script src="/latency-layer.js" defer></script>
 </head>
 <body>
 <div class="noise" aria-hidden="true"></div>
@@ -40,6 +41,7 @@
         <p class="conditions-kicker">current conditions over the routing table</p>
         <h1 id="conditions-word" class="conditions-word">Calm</h1>
         <p id="conditions-text" class="conditions-text">Waiting for the first observations to come in from the collectors…</p>
+        <p id="latency-line" class="latency-line mono" hidden></p>
       </div>
       <dl class="conditions-readout mono">
         <div><dt>updates/sec</dt><dd id="r-rate">0</dd></div>
@@ -63,8 +65,16 @@
     <span class="ticker-item ticker-collectors"><span class="ticker-k">COLLECTORS</span> <span id="t-collectors" class="ticker-v">—</span></span>
   </section>
 
+  <!-- Latency region strip: level, sparkline, median, Δ vs normal -->
+  <section id="region-strip" class="region-strip" aria-label="regional latency conditions" hidden></section>
+
   <section class="feedbar">
     <h2 class="feedbar-title">Observed events</h2>
+    <div id="channel-switch" class="channel-switch mono" role="group" aria-label="channel">
+      <button type="button" data-ch="bgp">BGP</button>
+      <button type="button" data-ch="latency">LATENCY</button>
+      <button type="button" data-ch="both" class="active">BOTH</button>
+    </div>
   </section>
 
   <!-- Event feed -->
@@ -78,7 +88,7 @@
 
 <footer class="foot">
   <p>Detection is heuristic and unconfirmed — this is a weather channel, not an attribution service.</p>
-  <p class="mono foot-src">data · <a href="https://ris-live.ripe.net" rel="noopener">RIPE RIS Live</a> &nbsp;·&nbsp; narration · Claude &nbsp;·&nbsp; <a href="https://github.com/sjohnston1972/bgpweather" rel="noopener">source</a></p>
+  <p class="mono foot-src">routing · <a href="https://ris-live.ripe.net" rel="noopener">RIPE RIS Live</a> &nbsp;·&nbsp; latency data · <a href="https://atlas.ripe.net" rel="noopener">RIPE Atlas</a> &nbsp;·&nbsp; narration · Claude &nbsp;·&nbsp; <a href="https://github.com/sjohnston1972/bgpweather" rel="noopener">source</a></p>
 </footer>
 </body>
 </html>

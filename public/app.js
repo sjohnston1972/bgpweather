@@ -1,7 +1,7 @@
-/* BGP Weather Channel — dashboard client.
-   Connects to the Watcher Durable Object over WebSocket, renders the live
-   feed, derives the "internet weather" from recent event severities, and
-   drives the 3D globe centrepiece (globe.gl). Vanilla JS. */
+/* BGP Weather Channel — dashboard client (BGP channel + shared chrome).
+   Connects to the Watcher DO over WebSocket, renders the feed, derives
+   routing conditions, and drives the 3D globe. The latency channel lives in
+   latency-layer.js and talks to this file through window.BGPW. Vanilla JS. */
 
 (() => {
   "use strict";
@@ -13,12 +13,44 @@
 
   const SEV_COLORS = { 1: "#4da3ff", 2: "#ffb547", 3: "#ff4d5e" };
   const COND_COLORS = { calm: "#69e2b8", unsettled: "#ffb547", stormy: "#ff4d5e" };
+  const LATENCY_KINDS = new Set(["LATENCY_STORM", "LOSS_SQUALL", "CLEARING", "GLOBAL_FRONT"]);
+  // Region cell fill by level: Clear / Breezy / Unsettled / Stormy.
+  const LEVEL_RGBA = [
+    "rgba(77,163,255,0.10)", "rgba(45,212,167,0.16)",
+    "rgba(255,181,71,0.24)", "rgba(255,77,94,0.32)",
+  ];
+  const LEVEL_STROKE = [
+    "rgba(77,163,255,0.35)", "rgba(45,212,167,0.5)",
+    "rgba(255,181,71,0.7)", "rgba(255,77,94,0.85)",
+  ];
 
   const $ = (id) => document.getElementById(id);
   const feed = $("feed");
   const feedEmpty = $("feed-empty");
 
-  let events = [];   // newest-first; drives the conditions computation
+  let events = [];   // newest-first; latency kinds excluded from routing conditions
+
+  // ── channel switcher (BGP / LATENCY / BOTH) ──────────────────────────────
+  const channelListeners = [];
+  let channel = (() => {
+    const q = new URLSearchParams(location.search).get("channel");
+    if (["bgp", "latency", "both"].includes(q)) return q;
+    const saved = localStorage.getItem("bgpw-channel");
+    return ["bgp", "latency", "both"].includes(saved) ? saved : "both";
+  })();
+
+  function setChannel(ch) {
+    channel = ch;
+    localStorage.setItem("bgpw-channel", ch);
+    document.body.className = `ch-${ch}`;
+    document.querySelectorAll("#channel-switch button").forEach((b) => {
+      b.classList.toggle("active", b.dataset.ch === ch);
+    });
+    for (const cb of channelListeners) cb(ch);
+  }
+  document.querySelectorAll("#channel-switch button").forEach((b) => {
+    b.addEventListener("click", () => setChannel(b.dataset.ch));
+  });
 
   // ── UTC clock ────────────────────────────────────────────────────────────
   function tickClock() {
@@ -28,11 +60,12 @@
   setInterval(tickClock, 1000);
 
   // ═══ GLOBE ════════════════════════════════════════════════════════════════
-  // All globe access goes through this tiny facade so the rest of the app
-  // works identically when WebGL/globe.gl is unavailable (old phones, etc.).
+  // Facade so the rest of the app (and latency-layer.js) works identically
+  // when WebGL/globe.gl is unavailable.
   const globeApi = {
     ready: false,
     setCondition() {}, addEventArc() {}, setRate() {},
+    setRegionCells() {}, setFront() {},
   };
 
   async function initGlobe() {
@@ -57,15 +90,15 @@
 
     const collectors = Object.entries(rrc).map(([id, c]) => ({ id, ...c }));
 
-    // Ambient "breathing": one slow repeating ring per collector. Event
-    // ripples ride in the same layer as one-shot entries.
     let ambientPeriod = 6000;
     const ambient = collectors.map((c) => ({
-      lat: c.lat, lng: c.lng, kind: "ambient",
+      lat: c.lat, lng: c.lng,
       maxR: 2.4, speed: 1.1, repeat: ambientPeriod, rgb: "61,220,151", alpha: 0.28,
     }));
-    let ripples = [];
-    let arcs = [];
+    let ripples = [];   // one-shot event ripples
+    let stormRings = []; // repeating pulses over Stormy latency regions
+    let arcs = [];      // BGP event arcs (TTL-pruned)
+    let frontArcs = []; // latency GLOBAL_FRONT band (persists while active)
 
     globe
       .globeImageUrl("https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-night.jpg")
@@ -93,28 +126,32 @@
       .arcAltitude("alt")
       .arcStroke("stroke")
       .arcDashLength(0.45).arcDashGap(0.7).arcDashInitialGap(1)
-      .arcDashAnimateTime(1600);
+      .arcDashAnimateTime(1600)
+      .polygonsData([])
+      .polygonCapColor((d) => d.properties.color)
+      .polygonSideColor(() => "rgba(0,0,0,0)")
+      .polygonStrokeColor((d) => d.properties.stroke)
+      .polygonAltitude(0.013)
+      .polygonLabel((d) => d.properties.label)
+      .polygonsTransitionDuration(600);
 
     const controls = globe.controls();
     controls.autoRotate = !reduceMotion;
     controls.autoRotateSpeed = 0.55;
     controls.enableZoom = false;
     if (coarse) {
-      // On touch screens the globe is scenery: never trap page scrolling.
-      controls.enabled = false;
+      controls.enabled = false;       // touch: scenery, never traps page scroll
       el.classList.add("globe-static");
     }
     globe.pointOfView({ lat: 25, lng: -20, altitude: 2.2 }, 0);
 
-    // Keep the canvas matched to its container.
     const size = () => { globe.width(el.clientWidth).height(el.clientHeight); };
     size();
     new ResizeObserver(size).observe(el);
 
-    const pushRings = () => globe.ringsData([...ambient, ...ripples]);
-    const pushArcs = () => globe.arcsData([...arcs]);
+    const pushRings = () => globe.ringsData([...ambient, ...stormRings, ...ripples]);
+    const pushArcs = () => globe.arcsData([...arcs, ...frontArcs]);
 
-    // Prune fading entries a few times a minute.
     setInterval(() => {
       const now = Date.now();
       const beforeA = arcs.length, beforeR = ripples.length;
@@ -129,19 +166,29 @@
       return `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
     };
 
-    let focusTimer = null;
+    // A region cell as a circular GeoJSON polygon around its centre.
+    function circleFeature(id, info, props) {
+      const ring = [];
+      const latRad = (info.lat * Math.PI) / 180;
+      for (let i = 0; i <= 36; i++) {
+        const a = (i / 36) * 2 * Math.PI;
+        ring.push([
+          info.lng + (info.radius * Math.cos(a)) / Math.max(0.2, Math.cos(latRad)),
+          Math.max(-85, Math.min(85, info.lat + info.radius * Math.sin(a))),
+        ]);
+      }
+      return { type: "Feature", properties: { id, ...props }, geometry: { type: "Polygon", coordinates: [ring] } };
+    }
 
+    let focusTimer = null;
     globeApi.ready = true;
 
     globeApi.setCondition = (state) => {
       globe.atmosphereColor(COND_COLORS[state] ?? COND_COLORS.calm);
     };
 
-    // Ambient pulse cadence follows msgs/sec: busier stream = faster breathing.
     globeApi.setRate = (msgsPerSec) => {
       const period = Math.round(Math.max(1500, Math.min(8000, 6000 / (1 + (msgsPerSec || 0)))));
-      // Re-seeding ringsData restarts animations — only do it when the cadence
-      // meaningfully changes (quantized to 500ms buckets).
       if (Math.abs(period - ambientPeriod) < 500) return;
       ambientPeriod = period;
       for (const a of ambient) a.repeat = period;
@@ -149,6 +196,7 @@
     };
 
     globeApi.addEventArc = (ev) => {
+      if (channel === "latency") return; // BGP theatre hidden on the latency channel
       const d = ev.details ?? {};
       const collectorId = String(d.collector ?? "").replace(".ripe.net", "");
       const from = rrc[collectorId];
@@ -156,25 +204,18 @@
       if (!home) return;
       const rgb = hexToRgb(SEV_COLORS[ev.severity] ?? SEV_COLORS[1]);
       const now = Date.now();
-
       if (from) {
         arcs.push({
-          startLat: from.lat, startLng: from.lng,
-          endLat: home.lat, endLng: home.lng,
-          rgb, born: now,
-          alt: 0.2 + ev.severity * 0.06,
-          stroke: 0.35 + ev.severity * 0.18,
+          startLat: from.lat, startLng: from.lng, endLat: home.lat, endLng: home.lng,
+          rgb, born: now, alt: 0.2 + ev.severity * 0.06, stroke: 0.35 + ev.severity * 0.18,
         });
         pushArcs();
       }
-      // Ripple ring where the trouble lives.
       ripples.push({
-        lat: home.lat, lng: home.lng, kind: "ripple", born: now,
+        lat: home.lat, lng: home.lng, born: now,
         maxR: 3 + ev.severity * 1.6, speed: 2.4, repeat: 9999, rgb, alpha: 0.6,
       });
       pushRings();
-
-      // Severity 3: swing the camera to face the event. Maximum drama.
       if (ev.severity >= 3 && !reduceMotion) {
         controls.autoRotate = false;
         globe.pointOfView({ lat: home.lat, lng: home.lng, altitude: 1.9 }, 1200);
@@ -182,6 +223,63 @@
         focusTimer = setTimeout(() => { controls.autoRotate = true; }, 5000);
       }
     };
+
+    // Latency layer: translucent region cells + storm pulses.
+    globeApi.setRegionCells = (frame, regions) => {
+      if (channel === "bgp" || !frame) {
+        globe.polygonsData([]);
+        stormRings = [];
+        pushRings();
+        return;
+      }
+      const features = [];
+      stormRings = [];
+      for (const cell of frame.regions) {
+        const info = regions[cell.id];
+        if (!info) continue;
+        const warming = !cell.ready;
+        const color = warming ? "rgba(216,222,233,0.05)" : LEVEL_RGBA[cell.level];
+        const stroke = warming ? "rgba(216,222,233,0.18)" : LEVEL_STROKE[cell.level];
+        const label =
+          `<div class="cell-tip"><b>${info.name}</b><br>` +
+          (cell.medianRtt !== null ? `median ${cell.medianRtt} ms` : "no data") +
+          (cell.deltaPct !== null ? ` · ${cell.deltaPct > 0 ? "+" : ""}${cell.deltaPct}% vs normal` : "") +
+          `<br>loss ${cell.lossPct}% · ${cell.samples} probes` +
+          (warming ? "<br><i>baseline calibrating…</i>" : "") +
+          (cell.lowData ? "<br><i>low data</i>" : "") + `</div>`;
+        features.push(circleFeature(cell.id, info, { color, stroke, label }));
+        if (cell.ready && cell.level === 3) {
+          stormRings.push({
+            lat: info.lat, lng: info.lng,
+            maxR: info.radius * 0.9, speed: 1.6, repeat: 2400, rgb: "255,77,94", alpha: 0.5,
+          });
+        }
+      }
+      globe.polygonsData(features);
+      pushRings();
+    };
+
+    // GLOBAL_FRONT theatre: an amber band chained through the disturbed regions.
+    globeApi.setFront = (degradedCentres) => {
+      frontArcs = [];
+      if (channel !== "bgp" && degradedCentres && degradedCentres.length >= 2) {
+        for (let i = 0; i < degradedCentres.length - 1; i++) {
+          frontArcs.push({
+            startLat: degradedCentres[i].lat, startLng: degradedCentres[i].lng,
+            endLat: degradedCentres[i + 1].lat, endLng: degradedCentres[i + 1].lng,
+            rgb: "255,181,71", alt: 0.35, stroke: 0.5, born: Infinity,
+          });
+        }
+      }
+      pushArcs();
+    };
+
+    channelListeners.push(() => {
+      // re-apply layer visibility on channel change
+      if (window.BGPW._lastFrame) globeApi.setRegionCells(window.BGPW._lastFrame, window.BGPW._regions ?? {});
+      else if (channel === "bgp") globeApi.setRegionCells(null);
+      globeApi.setFront(window.BGPW._lastFront ?? []);
+    });
   }
 
   if (document.readyState === "loading") {
@@ -190,7 +288,7 @@
     void initGlobe();
   }
 
-  // ── websocket with reconnect ────────────────────────────────────────────
+  // ── websocket with reconnect (BGP channel) ───────────────────────────────
   let ws = null;
   let backoff = 1000;
   let pingTimer = null;
@@ -198,21 +296,18 @@
   function connect() {
     const proto = location.protocol === "https:" ? "wss" : "ws";
     ws = new WebSocket(`${proto}://${location.host}/ws`);
-
     ws.onopen = () => {
       backoff = 1000;
       setConn(true);
       clearInterval(pingTimer);
       pingTimer = setInterval(() => { try { ws.send("ping"); } catch { /* noop */ } }, 25_000);
     };
-
     ws.onmessage = (e) => {
       if (e.data === "pong") return;
       let msg;
       try { msg = JSON.parse(e.data); } catch { return; }
       handle(msg);
     };
-
     ws.onclose = () => {
       setConn(false);
       clearInterval(pingTimer);
@@ -240,29 +335,37 @@
         updateConditions();
         break;
       case "event":
-        events.unshift(msg.event);
-        if (events.length > 500) events.length = 500;
-        feed.prepend(renderCard(msg.event, true));
-        trimFeed();
-        updateEmpty();
-        updateConditions();
-        globeApi.addEventArc(msg.event);
+        addEvent(msg.event, { arc: true });
         break;
-      case "commentary": {
-        const el = feed.querySelector(`[data-id="${CSS.escape(msg.id)}"] .card-text`);
-        if (el) {
-          el.textContent = msg.commentary;
-          el.classList.add("is-ai");
-        }
-        const known = events.find((e) => e.id === msg.id);
-        if (known) { known.commentary = msg.commentary; known.narrated = true; }
-        if (known && known.kind === "CALM_SUMMARY") updateConditions();
+      case "commentary":
+        applyCommentary(msg.id, msg.commentary);
         break;
-      }
       case "stats":
         renderStats(msg.stats);
         break;
     }
+  }
+
+  // Shared event ingestion — used by both channels (latency-layer calls this).
+  function addEvent(ev, { arc = false } = {}) {
+    events.unshift(ev);
+    if (events.length > 500) events.length = 500;
+    feed.prepend(renderCard(ev, true));
+    trimFeed();
+    updateEmpty();
+    updateConditions();
+    if (arc && !LATENCY_KINDS.has(ev.kind)) globeApi.addEventArc(ev);
+  }
+
+  function applyCommentary(id, commentary) {
+    const el = feed.querySelector(`[data-id="${CSS.escape(id)}"] .card-text`);
+    if (el) {
+      el.textContent = commentary;
+      el.classList.add("is-ai");
+    }
+    const known = events.find((e) => e.id === id);
+    if (known) { known.commentary = commentary; known.narrated = true; }
+    if (known && known.kind === "CALM_SUMMARY") updateConditions();
   }
 
   // ── stats ticker ─────────────────────────────────────────────────────────
@@ -283,26 +386,26 @@
     globeApi.setRate(s.msgsPerSec ?? 0);
   }
 
-  // ── conditions ───────────────────────────────────────────────────────────
+  // ── conditions (line 1: routing weather — BGP events only) ──────────────
   function updateConditions() {
     const now = Date.now();
-    const stormy = events.some((e) => e.severity >= 3 && now - e.ts < STORMY_WINDOW);
-    const unsettled = events.some((e) => e.severity >= 2 && now - e.ts < UNSETTLED_WINDOW);
+    const bgp = events.filter((e) => !LATENCY_KINDS.has(e.kind));
+    const stormy = bgp.some((e) => e.severity >= 3 && now - e.ts < STORMY_WINDOW);
+    const unsettled = bgp.some((e) => e.severity >= 2 && now - e.ts < UNSETTLED_WINDOW);
     const state = stormy ? "stormy" : unsettled ? "unsettled" : "calm";
 
-    const hero = $("hero");
-    hero.className = `hero hero-${state}`;
+    $("hero").className = `hero hero-${state}`;
     $("conditions-word").textContent = state[0].toUpperCase() + state.slice(1);
 
     const text = $("conditions-text");
     if (stormy) {
-      const worst = events.find((e) => e.severity >= 3 && now - e.ts < STORMY_WINDOW);
+      const worst = bgp.find((e) => e.severity >= 3 && now - e.ts < STORMY_WINDOW);
       text.textContent = worst?.commentary || "Severe routing weather detected in the last half hour.";
     } else if (unsettled) {
-      const recent = events.find((e) => e.severity >= 2 && now - e.ts < UNSETTLED_WINDOW);
+      const recent = bgp.find((e) => e.severity >= 2 && now - e.ts < UNSETTLED_WINDOW);
       text.textContent = recent?.commentary || "Some notable routing activity in the last hour.";
     } else {
-      const calm = events.find((e) => e.kind === "CALM_SUMMARY");
+      const calm = bgp.find((e) => e.kind === "CALM_SUMMARY");
       text.textContent = calm?.commentary
         || "No notable disturbances on the watchlist. The routing table turns quietly beneath us.";
     }
@@ -310,13 +413,14 @@
     $("r-events").textContent = events.filter((e) => e.ts > now - 3_600_000).length;
     globeApi.setCondition(state);
   }
-  setInterval(updateConditions, 60_000); // windows slide even with no new events
+  setInterval(updateConditions, 60_000);
 
   // ── event cards ──────────────────────────────────────────────────────────
   function renderCard(ev, isNew) {
     const card = document.createElement("article");
     card.className = `card card-sev${ev.severity}${isNew ? " is-new" : ""}`;
     card.dataset.id = ev.id;
+    card.dataset.channel = LATENCY_KINDS.has(ev.kind) ? "latency" : "bgp";
 
     const head = document.createElement("div");
     head.className = "card-head";
@@ -326,7 +430,7 @@
     kind.textContent = ev.kind;
     head.appendChild(kind);
 
-    if (ev.severity >= 3) {
+    if (ev.severity >= 3 && !LATENCY_KINDS.has(ev.kind)) {
       const unc = document.createElement("span");
       unc.className = "badge badge-unconfirmed";
       unc.textContent = "detected — unconfirmed";
@@ -376,5 +480,22 @@
     feedEmpty.hidden = feed.querySelector(".card") !== null;
   }
 
+  // ── bridge for latency-layer.js ──────────────────────────────────────────
+  window.BGPW = {
+    addEvent,
+    applyCommentary,
+    globeApi,
+    getChannel: () => channel,
+    onChannel: (cb) => channelListeners.push(cb),
+    setLatencyLine: (text) => {
+      const el = $("latency-line");
+      if (!el) return;
+      el.textContent = text ?? "";
+      el.hidden = !text || channel === "bgp";
+    },
+    _lastFrame: null, _regions: null, _lastFront: [],
+  };
+
+  setChannel(channel);
   connect();
 })();
