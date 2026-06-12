@@ -1,0 +1,86 @@
+{
+ "uk-ireland": {
+  "name": "UK & Ireland",
+  "lat": 52.49,
+  "lng": -1.45,
+  "radius": 5
+ },
+ "west-europe": {
+  "name": "Western Europe",
+  "lat": 51.25,
+  "lng": 6.75,
+  "radius": 6
+ },
+ "nordics": {
+  "name": "Nordics",
+  "lat": 60.85,
+  "lng": 24.33,
+  "radius": 7
+ },
+ "east-europe": {
+  "name": "Eastern Europe",
+  "lat": 47.34,
+  "lng": 22.55,
+  "radius": 7
+ },
+ "south-europe": {
+  "name": "Southern Europe",
+  "lat": 41.94,
+  "lng": -0.73,
+  "radius": 7
+ },
+ "us-east": {
+  "name": "US East",
+  "lat": 37.52,
+  "lng": -86.73,
+  "radius": 9
+ },
+ "us-west": {
+  "name": "US West",
+  "lat": 40.52,
+  "lng": -117.19,
+  "radius": 9
+ },
+ "brazil": {
+  "name": "Brazil",
+  "lat": -26.86,
+  "lng": -48.92,
+  "radius": 9
+ },
+ "south-africa": {
+  "name": "South Africa",
+  "lat": -30.05,
+  "lng": 23.34,
+  "radius": 7
+ },
+ "middle-east": {
+  "name": "Middle East",
+  "lat": 25.08,
+  "lng": 55.77,
+  "radius": 8
+ },
+ "india": {
+  "name": "India",
+  "lat": 23.8,
+  "lng": 75.06,
+  "radius": 9
+ },
+ "se-asia": {
+  "name": "Southeast Asia",
+  "lat": -2.79,
+  "lng": 105.69,
+  "radius": 9
+ },
+ "japan-korea": {
+  "name": "Japan & Korea",
+  "lat": 36.58,
+  "lng": 133.28,
+  "radius": 8
+ },
+ "australia": {
+  "name": "Australia & NZ",
+  "lat": -35.38,
+  "lng": 162.98,
+  "radius": 11
+ }
+}
