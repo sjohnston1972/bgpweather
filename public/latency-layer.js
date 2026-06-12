@@ -7,7 +7,9 @@
   "use strict";
 
   const LEVEL_NAMES = ["Clear", "Breezy", "Unsettled", "Stormy"];
-  const LEVEL_COLORS = ["#4da3ff", "#2dd4a7", "#ffb547", "#ff4d5e"];
+  // Strip/sparkline colours are a traffic light: green (Clear/Breezy),
+  // amber (Unsettled), red (Stormy). Grey while calibrating.
+  const LEVEL_COLORS = ["#3ddc97", "#3ddc97", "#ffb547", "#ff4d5e"];
   const SPARK_POINTS = 100;
 
   const strip = document.getElementById("region-strip");
