@@ -29,6 +29,6 @@ export function rowToEvent(row: Record<string, unknown>): BgpEvent {
     prefix: row.prefix == null ? undefined : String(row.prefix),
     label: row.label == null ? undefined : String(row.label),
     details, commentary: String(row.commentary ?? ""),
-    narrated: Number(row.narrated) === 1, replay: Number(row.replay) === 1,
+    narrated: Number(row.narrated) === 1,
   };
 }

@@ -113,14 +113,19 @@ function checkOriginChange(
   msg: RisUpdate, cfg: Config, now: number, events: NewEvent[],
 ) {
   if (origin === undefined || isExpectedOrigin(w.entry, origin)) return;
+  // An unknown origin announced THROUGH the owner's own network is almost
+  // always the owner rotating anycast ASNs (Verisign does this constantly
+  // with the root servers) — a curiosity, not a hijack alarm.
+  const viaExpected = path.some((asn) => isExpectedOrigin(w.entry, asn));
   // undefined = never fired for this origin before -> always fire
   const last = ps.originDebounce[String(origin)];
   if (last !== undefined && now - last < cfg.rules.originChangeDebounceMs) return;
   ps.originDebounce[String(origin)] = now;
   events.push({
-    ts: now, kind: "ORIGIN_CHANGE", severity: 3, prefix: w.entry.prefix, label: w.entry.label,
+    ts: now, kind: "ORIGIN_CHANGE", severity: viaExpected ? 1 : 3, prefix: w.entry.prefix, label: w.entry.label,
     details: {
       expectedOrigins: w.entry.expected_origins, observedOrigin: origin,
+      viaExpectedOrigin: viaExpected,
       asPath: path, peer: msg.peer, peerAsn: msg.peer_asn, collector: msg.host,
     },
   });

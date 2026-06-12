@@ -51,7 +51,7 @@ describe("templateFor", () => {
     expect(t).toContain("AS666");
   });
   it("has a non-empty template for every kind", () => {
-    for (const kind of ["ORIGIN_CHANGE", "MORE_SPECIFIC", "WITHDRAWAL_STORM", "FLAP", "PATH_ANOMALY", "CALM_SUMMARY", "REPLAY"] as const) {
+    for (const kind of ["ORIGIN_CHANGE", "MORE_SPECIFIC", "WITHDRAWAL_STORM", "FLAP", "PATH_ANOMALY", "CALM_SUMMARY"] as const) {
       expect(templateFor(ev(kind, 1)).length).toBeGreaterThan(10);
     }
   });

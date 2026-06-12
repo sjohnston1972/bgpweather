@@ -31,10 +31,6 @@ export const CONFIG = {
     maxNonSev3PerHour: 8,    // severity-3 events get the remaining headroom ("jump the queue")
     calmMaxPerHour: 1,
   },
-  replay: {
-    defaultSpeed: 20,
-    maxWaitMs: 3_000,   // never stall a demo longer than this between messages
-  },
   retentionDays: 30,
   persistIntervalMs: 60_000,
   statsBroadcastMs: 2_000,

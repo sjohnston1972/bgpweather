@@ -35,6 +35,23 @@ describe("ORIGIN_CHANGE", () => {
     // after the debounce window the first origin fires again
     expect(processMessage(announce("1.1.1.0/24", [64500, 174, 666]), wl, st, CONFIG, 2000 + CONFIG.rules.originChangeDebounceMs)).toHaveLength(1);
   });
+  it("downgrades to sev1 when an expected origin transits the path (anycast rotation)", () => {
+    const wl = compileWatchlist([
+      { prefix: "198.41.0.0/24", expected_origins: [19836, 7342], label: "A-root" },
+    ]);
+    const st = emptyState(0);
+    // Unknown origin, but announced through Verisign's own AS7342 backbone:
+    // almost certainly the owner rotating anycast ASNs, not a hijack.
+    const evs = processMessage(announce("198.41.0.0/24", [3491, 1299, 7342, 64999]), wl, st, CONFIG, 1000);
+    expect(evs).toHaveLength(1);
+    expect(evs[0]).toMatchObject({ kind: "ORIGIN_CHANGE", severity: 1 });
+    expect(evs[0].details.viaExpectedOrigin).toBe(true);
+    // No owner anywhere in the path -> full-fat sev3
+    const evs2 = processMessage(announce("198.41.0.0/24", [3491, 1299, 65000]), wl, st, CONFIG, 2000);
+    expect(evs2[0]).toMatchObject({ kind: "ORIGIN_CHANGE", severity: 3 });
+    expect(evs2[0].details.viaExpectedOrigin).toBe(false);
+  });
+
   it("flattens AS-sets in the path", () => {
     const wl = compileWatchlist(WL);
     const st = emptyState(0);

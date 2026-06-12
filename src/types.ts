@@ -2,7 +2,7 @@
 
 export type EventKind =
   | "ORIGIN_CHANGE" | "MORE_SPECIFIC" | "WITHDRAWAL_STORM"
-  | "FLAP" | "PATH_ANOMALY" | "CALM_SUMMARY" | "REPLAY";
+  | "FLAP" | "PATH_ANOMALY" | "CALM_SUMMARY";
 
 export type Severity = 1 | 2 | 3;
 
@@ -20,7 +20,6 @@ export interface BgpEvent extends NewEvent {
   id: string;
   commentary: string;
   narrated: boolean;   // true = AI text, false = template fallback
-  replay: boolean;
 }
 
 // The `data` payload of a RIS Live "ris_message".
@@ -71,18 +70,6 @@ export interface Counters {
 export interface HeuristicsState {
   prefixes: Record<string, PrefixState>;  // keyed by watchlist prefix string
   counters: Counters;
-}
-
-// Replay fixture shape (fixtures/*.json).
-export interface FixtureMessage { dt: number; data: RisUpdate }  // dt = ms since incident start
-export interface Fixture {
-  name: string;
-  title: string;
-  description: string;
-  disclaimer: string;
-  speed: number;        // time compression factor
-  watchlist: WatchlistEntry[];
-  messages: FixtureMessage[];
 }
 
 export interface Env {

@@ -2,8 +2,7 @@
 //   1. holds the outbound WebSocket to RIS Live (this is why a DO and not a
 //      plain Worker — Workers are stateless and die between requests),
 //   2. runs every message through the heuristics engine,
-//   3. writes events to D1 and fans them out to dashboard browsers,
-//   4. runs replays through the same pipeline with isolated state.
+//   3. writes events to D1 and fans them out to dashboard browsers.
 // Holding the outbound socket keeps the DO awake — that's the accepted cost.
 
 import { DurableObject } from "cloudflare:workers";
@@ -15,18 +14,9 @@ import {
 import { NarrationBudget, narrate, templateFor } from "./narrator";
 import { rowToEvent, ulid } from "./util";
 import type {
-  BgpEvent, Counters, Env, Fixture, HeuristicsState, NewEvent, RisUpdate, WatchlistEntry,
+  BgpEvent, Counters, Env, HeuristicsState, NewEvent, RisUpdate, WatchlistEntry,
 } from "./types";
 import watchlistJson from "../watchlist.json";
-import facebook2021 from "../fixtures/facebook-2021.json";
-import youtube2008 from "../fixtures/youtube-2008.json";
-import prependLeak2019 from "../fixtures/prepend-leak-2019.json";
-
-const FIXTURES: Record<string, Fixture> = {
-  "facebook-2021": facebook2021 as unknown as Fixture,
-  "youtube-2008": youtube2008 as unknown as Fixture,
-  "prepend-leak-2019": prependLeak2019 as unknown as Fixture,
-};
 
 export class Watcher extends DurableObject<Env> {
   private risWs: WebSocket | null = null;
@@ -41,7 +31,6 @@ export class Watcher extends DurableObject<Env> {
   private budget: NarrationBudget = new NarrationBudget();
   private dirty = false;
   private compiled = compileWatchlist(watchlistJson as WatchlistEntry[]);
-  private replayActive: string | null = null;
   private timersStarted = false;
   private statsLastCount = 0;
   private statsLastTs = Date.now();
@@ -75,9 +64,6 @@ export class Watcher extends DurableObject<Env> {
       await this.maybeCalmSummary();
       return new Response("ok");
     }
-    if (url.pathname.startsWith("/replay/") && request.method === "POST") {
-      return this.startReplay(url.pathname.split("/")[2] ?? "");
-    }
     return new Response("not found", { status: 404 });
   }
 
@@ -99,10 +85,8 @@ export class Watcher extends DurableObject<Env> {
     // socket keeps this DO awake anyway).
     this.ctx.acceptWebSocket(pair[1]);
     try {
-      // History is live events only — replays are demo data and shouldn't
-      // greet visitors by default; they stream in live while one is running.
       const rows = await this.env.DB.prepare(
-        "SELECT * FROM events WHERE replay = 0 ORDER BY ts DESC LIMIT 50",
+        "SELECT * FROM events ORDER BY ts DESC LIMIT 50",
       ).all();
       pair[1].send(JSON.stringify({ type: "history", events: rows.results.map(rowToEvent) }));
     } catch (err) {
@@ -110,9 +94,6 @@ export class Watcher extends DurableObject<Env> {
       pair[1].send(JSON.stringify({ type: "history", events: [] }));
     }
     pair[1].send(JSON.stringify({ type: "stats", stats: this.statsBody() }));
-    if (this.replayActive) {
-      pair[1].send(JSON.stringify({ type: "replay", status: "started", incident: this.replayActive }));
-    }
     return new Response(null, { status: 101, webSocket: pair[0] });
   }
 
@@ -199,19 +180,19 @@ export class Watcher extends DurableObject<Env> {
     // Keep per-message work tiny (DO CPU limits): pure heuristics + counters only.
     const events = processMessage(parsed.data, this.compiled, this.state, CONFIG, Date.now());
     this.dirty = true;
-    for (const ev of events) void this.publishEvent(ev, false);
+    for (const ev of events) void this.publishEvent(ev);
   }
 
   // ---- event publication ------------------------------------------------------
 
-  private async publishEvent(ev: NewEvent, replay: boolean): Promise<void> {
-    const event: BgpEvent = { ...ev, id: ulid(), commentary: templateFor(ev), narrated: false, replay };
+  private async publishEvent(ev: NewEvent): Promise<void> {
+    const event: BgpEvent = { ...ev, id: ulid(), commentary: templateFor(ev), narrated: false };
     try {
       await this.env.DB.prepare(
-        "INSERT INTO events (id, ts, kind, severity, prefix, label, details, commentary, narrated, replay) VALUES (?,?,?,?,?,?,?,?,?,?)",
+        "INSERT INTO events (id, ts, kind, severity, prefix, label, details, commentary, narrated) VALUES (?,?,?,?,?,?,?,?,?)",
       ).bind(
         event.id, event.ts, event.kind, event.severity, event.prefix ?? null, event.label ?? null,
-        JSON.stringify(event.details), event.commentary, 0, replay ? 1 : 0,
+        JSON.stringify(event.details), event.commentary, 0,
       ).run();
     } catch (err) {
       console.log("D1 insert failed:", err);
@@ -248,7 +229,7 @@ export class Watcher extends DurableObject<Env> {
     await this.ctx.storage.put("hourlySnapshot", this.hourlySnapshot);
     try {
       const row = await this.env.DB.prepare(
-        "SELECT COUNT(*) AS n FROM events WHERE ts > ? AND severity >= 2 AND replay = 0",
+        "SELECT COUNT(*) AS n FROM events WHERE ts > ? AND severity >= 2",
       ).bind(now - 3_600_000).first<{ n: number }>();
       if ((row?.n ?? 0) > 0) return; // not a calm hour — no summary
     } catch (err) {
@@ -256,53 +237,7 @@ export class Watcher extends DurableObject<Env> {
       return;
     }
     if (hourly.messages === 0 && !this.risWs) return; // offline and nothing to say
-    await this.publishEvent(buildCalmSummary(hourly, now), false);
-  }
-
-  // ---- replay --------------------------------------------------------------------
-
-  private startReplay(name: string): Response {
-    const fixture = FIXTURES[name];
-    if (!fixture) {
-      return Response.json({ error: "unknown incident", available: Object.keys(FIXTURES) }, { status: 404 });
-    }
-    if (this.replayActive) {
-      return Response.json({ error: `replay already running: ${this.replayActive}` }, { status: 409 });
-    }
-    this.replayActive = name;
-    void this.runReplay(fixture)
-      .catch((err) => console.log("replay failed:", err))
-      .finally(() => { this.replayActive = null; });
-    return Response.json({ started: name, title: fixture.title, messages: fixture.messages.length });
-  }
-
-  private async runReplay(fixture: Fixture): Promise<void> {
-    // Replays use their OWN state + watchlist so they never pollute live
-    // baselines, debounces, or the ticker counters.
-    const compiled = compileWatchlist(fixture.watchlist);
-    const state = emptyState(Date.now());
-    const speed = fixture.speed || CONFIG.replay.defaultSpeed;
-    this.broadcast({
-      type: "replay", status: "started", incident: fixture.name,
-      title: fixture.title, description: fixture.description, disclaimer: fixture.disclaimer,
-    });
-    let prevDt = 0;
-    for (const m of fixture.messages) {
-      const wait = Math.min(Math.max(0, m.dt - prevDt) / speed, CONFIG.replay.maxWaitMs);
-      prevDt = m.dt;
-      if (wait > 5) await new Promise((r) => setTimeout(r, wait));
-      const events = processMessage(m.data, compiled, state, CONFIG, Date.now());
-      for (const ev of events) {
-        // Spec §8: replay events are wrapped in kind REPLAY so nobody panics.
-        const wrapped: NewEvent = {
-          ...ev,
-          kind: "REPLAY",
-          details: { ...ev.details, originalKind: ev.kind, incident: fixture.name, reconstruction: true },
-        };
-        await this.publishEvent(wrapped, true);
-      }
-    }
-    this.broadcast({ type: "replay", status: "finished", incident: fixture.name });
+    await this.publishEvent(buildCalmSummary(hourly, now));
   }
 
   // ---- stats, status, timers, persistence ------------------------------------------
@@ -352,7 +287,6 @@ export class Watcher extends DurableObject<Env> {
       withdrawals: this.state.counters.withdrawals,
       topCollectors: top,
       clients: this.ctx.getWebSockets().length,
-      replayActive: this.replayActive,
     };
   }
 

@@ -59,6 +59,9 @@ export function templateFor(ev: NewEvent | BgpEvent): string {
   const where = ev.prefix ? `${ev.prefix}${ev.label ? ` (${ev.label})` : ""}` : "the routing table";
   switch (ev.kind) {
     case "ORIGIN_CHANGE":
+      if (d.viaExpectedOrigin) {
+        return `Origin change on ${where}: now announced by AS${d.observedOrigin}, but via the expected operator's own network — likely routine anycast rotation.`;
+      }
       return `Origin change detected on ${where}: expected AS${(d.expectedOrigins as number[] | undefined)?.join("/AS") ?? "?"}, now seeing AS${d.observedOrigin}. Detected — unconfirmed.`;
     case "MORE_SPECIFIC":
       return `More-specific prefix ${d.announcedPrefix ?? ev.prefix} announced inside watched ${d.watchedPrefix ?? "block"}${ev.label ? ` (${ev.label})` : ""} by AS${d.observedOrigin ?? "?"}. Could be traffic engineering; could be mischief. Detected — unconfirmed.`;
@@ -70,8 +73,6 @@ export function templateFor(ev: NewEvent | BgpEvent): string {
       return `Path anomaly on ${where}: ${d.reason ?? "unusual AS path observed"}.`;
     case "CALM_SUMMARY":
       return `All quiet on the routing front. ${d.messages ?? 0} BGP updates this hour (${d.announcements ?? 0} announcements, ${d.withdrawals ?? 0} withdrawals); busiest collector ${d.busiestCollector ?? "n/a"}.`;
-    case "REPLAY":
-      return `Replay (${d.incident ?? "historical incident"}): ${d.originalKind ?? "event"} on ${where}. Historical reconstruction — not live data.`;
     default:
       return `BGP event on ${where}.`;
   }
@@ -84,7 +85,6 @@ Rules:
 - Be technically accurate. Write ASNs as "AS13335" and prefixes like "1.1.1.0/24".
 - Always hedge on cause: say what it MIGHT be (a leak, a hijack, a maintenance window going sideways, a typo in a router config) — you observe symptoms, you do not attribute blame.
 - Severity 3 events are serious weather; severity 1 is a passing shower. Match your tone.
-- If the event is a REPLAY, note clearly it is a reconstruction of a historical incident, then narrate it with relish.
 - For CALM_SUMMARY events, do gentle colour commentary on a quiet hour using the counters provided.`;
 
 const GLOSSARY: Record<string, string> = {
@@ -94,7 +94,6 @@ const GLOSSARY: Record<string, string> = {
   FLAP: "FLAP: the route was announced and withdrawn repeatedly within minutes — unstable, often a struggling router or circuit.",
   PATH_ANOMALY: "PATH_ANOMALY: the AS path looks unusual — much longer than normal (heavy prepending or a leak) or containing a non-consecutive repeated ASN.",
   CALM_SUMMARY: "CALM_SUMMARY: nothing notable happened in the past hour; these are aggregate statistics for colour commentary.",
-  REPLAY: "REPLAY: a re-run of a famous historical routing incident from a reconstructed fixture, played at accelerated speed for demonstration.",
 };
 
 export interface NarrateOptions {
@@ -113,11 +112,8 @@ export async function narrate(
   if (!opts.enabled || !opts.apiKey) return fallback;
   if (!opts.budget.canNarrate(ev.severity, ev.kind, opts.now)) return fallback;
 
-  // For replays, include the original rule's glossary too so the narrator
-  // knows both that it's a replay and what actually happened.
-  const originalKind = ev.kind === "REPLAY" ? String((ev.details as Record<string, unknown>).originalKind ?? "") : "";
   const userMessage =
-    `${GLOSSARY[ev.kind] ?? ""}\n${originalKind ? GLOSSARY[originalKind] ?? "" : ""}\n` +
+    `${GLOSSARY[ev.kind] ?? ""}\n` +
     `Event:\n${JSON.stringify({ kind: ev.kind, severity: ev.severity, prefix: ev.prefix, label: ev.label, details: ev.details }, null, 2)}`;
 
   try {
